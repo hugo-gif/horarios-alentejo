@@ -1267,64 +1267,35 @@ const ASSIST_STOPWORDS = new Set([
   'menos', 'primeiro', 'primeira', 'ultimo', 'ultima', 'entre', 'desde',
 ]);
 
+/* Meses (nome normalizado -> índice 0-11) para datas explícitas. */
+const ASSIST_MESES = {
+  janeiro: 0, fevereiro: 1, marco: 2, abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+};
+
+/* Dias da semana (nome normalizado -> dow 0-6, domingo = 0). */
+const ASSIST_DIAS = [
+  { re: /\bdomingo\b/, dow: 0, label: 'domingo' },
+  { re: /\bsegunda(?:-feira)?\b/, dow: 1, label: 'segunda-feira' },
+  { re: /\bterca(?:-feira)?\b/, dow: 2, label: 'terça-feira' },
+  { re: /\bquarta(?:-feira)?\b/, dow: 3, label: 'quarta-feira' },
+  { re: /\bquinta(?:-feira)?\b/, dow: 4, label: 'quinta-feira' },
+  { re: /\bsexta(?:-feira)?\b/, dow: 5, label: 'sexta-feira' },
+  { re: /\bsabado\b/, dow: 6, label: 'sábado' },
+];
+
+/* Data local (sem desvio de fuso) em ISO YYYY-MM-DD. */
+function assistISO(d) {
+  const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+}
+
 /* Remove acentos e pontuação, devolve tokens úteis. */
 function assistTokens(texto) {
   return norm(texto)
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length >= 2 && !ASSIST_STOPWORDS.has(t));
-}
-
-/*
- * Encontra a paragem conhecida que melhor corresponde a um fragmento de texto.
- * Estratégia: (1) igualdade exata normalizada; (2) a paragem contém o termo;
- * (3) o termo contém a paragem; (4) melhor pontuação por tokens em comum.
- */
-function assistEncontrarParagem(fragmento) {
-  const alvo = norm(fragmento).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!alvo) return null;
-
-  // 1) Igualdade exata
-  for (const paragem of state.stops) {
-    if (norm(paragem) === alvo) return paragem;
-  }
-
-  // 2) A paragem contém o termo (ex.: "evora" -> "Évora")
-  const contem = state.stops.filter((p) => norm(p).includes(alvo));
-  if (contem.length) {
-    // Prefere a que começa pelo termo e, em empate, a mais curta (mais específica).
-    contem.sort((a, b) => {
-      const ca = norm(a).startsWith(alvo) ? 0 : 1;
-      const cb = norm(b).startsWith(alvo) ? 0 : 1;
-      if (ca !== cb) return ca - cb;
-      return a.length - b.length;
-    });
-    return contem[0];
-  }
-
-  // 3) O termo contém a paragem (ex.: "estacao rodoviaria de beja" -> "Beja")
-  const contido = state.stops.filter((p) => alvo.includes(norm(p)));
-  if (contido.length) {
-    contido.sort((a, b) => b.length - a.length);
-    return contido[0];
-  }
-
-  // 4) Pontuação por tokens em comum
-  const tokens = assistTokens(fragmento);
-  if (!tokens.length) return null;
-  let melhor = null;
-  let melhorScore = 0;
-  for (const paragem of state.stops) {
-    const pTokens = assistTokens(paragem);
-    if (!pTokens.length) continue;
-    let score = 0;
-    for (const t of tokens) {
-      if (pTokens.some((pt) => pt === t)) score += 2;
-      else if (pTokens.some((pt) => pt.startsWith(t) || t.startsWith(pt))) score += 1;
-    }
-    if (score > melhorScore) { melhorScore = score; melhor = paragem; }
-  }
-  return melhorScore >= 2 ? melhor : null;
 }
 
 /* Distância de Levenshtein (para sugestões por aproximação). */
@@ -1346,134 +1317,271 @@ function assistLevenshtein(a, b) {
 }
 
 /*
- * Sugestão por aproximação: encontra a paragem mais parecida com o termo
- * escrito (mesmo com gralhas, ex.: "portaleg" -> "Portalegre", "evra" -> "Évora").
- * Devolve { paragem, distancia, confianca } ou null.
+ * Pontua a semelhança entre um bloco de texto e uma paragem do catálogo.
+ * Devolve { paragem, score, exato } ou null. Score 0..1 (1 = igualdade exata).
+ * Estratégia em camadas: igualdade > prefixo > contém > tokens > Levenshtein.
  */
-function assistSugerirParagem(termo) {
-  const alvo = norm(termo).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (alvo.length < 3) return null;
+function assistPontuarParagem(bloco) {
+  const alvo = norm(bloco).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (alvo.length < 2) return null;
 
   let melhor = null;
-  let melhorDist = Infinity;
+  let melhorScore = 0;
+  let melhorExato = false;
+
   for (const paragem of state.stops) {
     const p = norm(paragem);
-    // Compara com a paragem inteira e com cada palavra (ex.: "Évora" em "Évora (Terminal)").
-    const candidatos = [p, ...p.split(' ')];
-    for (const c of candidatos) {
-      if (!c) continue;
-      // Prefixo: "portaleg" é prefixo de "portalegre" -> distância baixa.
-      const dist = c.startsWith(alvo) || alvo.startsWith(c)
-        ? Math.abs(c.length - alvo.length)
-        : assistLevenshtein(alvo, c);
-      if (dist < melhorDist) { melhorDist = dist; melhor = paragem; }
+    let score = 0;
+    let exato = false;
+
+    if (p === alvo) {
+      score = 1; exato = true;
+    } else if (p.startsWith(alvo)) {
+      // O termo é prefixo da paragem: "evora" -> "evora (terminal)", "portaleg" -> "portalegre".
+      const ratio = alvo.length / p.length;
+      score = 0.72 + 0.2 * ratio;
+    } else if (alvo.startsWith(p)) {
+      // A paragem é prefixo do termo: só é bom se o termo não tiver muito "lixo" extra.
+      // Ex.: "evora" -> "evora" (bom); "evora estremoz" -> "evora" (mau, sobra "estremoz").
+      const sobra = alvo.length - p.length;
+      const ratio = p.length / alvo.length;
+      score = sobra <= 2 ? 0.7 + 0.2 * ratio : 0.45 * ratio;
+    } else if (p.includes(alvo)) {
+      score = 0.6 + 0.15 * (alvo.length / p.length);
+    } else {
+      // Compara com a paragem inteira e com cada palavra individual.
+      const candidatos = [p, ...p.split(' ')];
+      let melhorLocal = 0;
+      for (const c of candidatos) {
+        if (!c) continue;
+        const dist = assistLevenshtein(alvo, c);
+        const sim = 1 - dist / Math.max(alvo.length, c.length);
+        if (sim > melhorLocal) melhorLocal = sim;
+      }
+      // Só considera fuzzy se houver semelhança razoável.
+      if (melhorLocal >= 0.6) score = melhorLocal * 0.85;
     }
+
+    if (score > melhorScore) { melhorScore = score; melhor = paragem; melhorExato = exato; }
   }
-  if (!melhor) return null;
 
-  // Limiar: aceita até ~40% de diferença face ao comprimento do termo.
-  const limite = Math.max(2, Math.ceil(alvo.length * 0.4));
-  if (melhorDist > limite) return null;
-
-  const confianca = 1 - melhorDist / Math.max(alvo.length, norm(melhor).length);
-  return { paragem: melhor, distancia: melhorDist, confianca };
+  if (!melhor || melhorScore < 0.5) return null;
+  return { paragem: melhor, score: melhorScore, exato: melhorExato };
 }
 
-/* Interpreta "de X para Y", "X para Y", "X -> Y", "X a Y", etc. */
-function assistInterpretar(texto) {
-  const limpo = String(texto || '').replace(/\s+/g, ' ').trim();
-  if (!limpo) return { origem: null, destino: null, sugestoes: [] };
+/*
+ * Reconhecimento por janela deslizante: percorre unigramas, bigramas e
+ * trigramas das palavras úteis e devolve as melhores correspondências
+ * ordenadas pela posição na frase (para atribuir origem/destino).
+ */
+function assistReconhecerParagens(texto) {
+  const palavras = norm(texto)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
 
-  // Padrões com separadores explícitos.
-  const padroes = [
-    /\bde\s+(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
-    /\b(?:desde|partindo de)\s+(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
-    /(.+?)\s*(?:->|→|=>|>)\s*(.+)$/,
-    /\b(?:ir|vou|quero ir|queria ir)\s+(?:de\s+)?(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
-    /^(.+?)\s+(?:para|pra|pro|ate|até)\s+(.+)$/i,
-  ];
+  const achados = [];
+  const usados = new Set();
 
-  for (const re of padroes) {
-    const m = re.exec(limpo);
-    if (m) {
-      const origem = assistEncontrarParagem(m[1]);
-      const destino = assistEncontrarParagem(m[2]);
-      // Gera sugestões por aproximação para o lado que não teve correspondência exata.
-      const sugestoes = [];
-      if (!origem) {
-        const s = assistSugerirParagem(m[1]);
-        if (s) sugestoes.push({ campo: 'origem', termo: m[1].trim(), ...s });
+  // Janelas de 3, 2 e 1 palavras (maior primeiro = mais específico).
+  for (const tam of [3, 2, 1]) {
+    for (let i = 0; i + tam <= palavras.length; i++) {
+      const janela = palavras.slice(i, i + tam);
+      // Ignora se alguma palavra já foi consumida por um bloco maior.
+      if (janela.some((_, k) => usados.has(i + k))) continue;
+
+      // Bloco completo e bloco sem stopwords (ex.: "vila de frades" -> "vila frades").
+      const blocos = [janela.join(' ')];
+      const semStop = janela.filter((w) => !ASSIST_STOPWORDS.has(w));
+      // Se a janela é só stopwords, não é uma paragem.
+      if (!semStop.length) continue;
+      if (semStop.length !== janela.length) blocos.push(semStop.join(' '));
+
+      let melhorRes = null;
+      for (const bloco of blocos) {
+        if (!bloco) continue;
+        const res = assistPontuarParagem(bloco);
+        if (res && (!melhorRes || res.score > melhorRes.score)) melhorRes = res;
       }
-      if (!destino) {
-        const s = assistSugerirParagem(m[2]);
-        if (s) sugestoes.push({ campo: 'destino', termo: m[2].trim(), ...s });
+      if (!melhorRes) continue;
+
+      // Para blocos multi-palavra, exige que o bloco seja melhor do que a
+      // melhor palavra isolada — senão deixa as palavras serem tratadas
+      // individualmente (ex.: "evora estremoz" não deve consumir "estremoz").
+      if (tam > 1) {
+        let melhorUni = 0;
+        for (let k = 0; k < tam; k++) {
+          const uni = assistPontuarParagem(palavras[i + k]);
+          if (uni && uni.score > melhorUni) melhorUni = uni.score;
+        }
+        if (melhorRes.score <= melhorUni + 0.05) continue;
       }
-      if (origem || destino || sugestoes.length) return { origem, destino, sugestoes };
+
+      // Evita duplicar a mesma paragem.
+      if (achados.some((a) => a.paragem === melhorRes.paragem)) continue;
+
+      achados.push({ ...melhorRes, pos: i, termo: janela.join(' ') });
+      for (let k = 0; k < tam; k++) usados.add(i + k);
     }
   }
 
-  // Sem separador: tenta encontrar duas paragens distintas na frase.
-  const tokens = limpo.split(/\s+/);
-  const encontradas = [];
-  for (let i = 0; i < tokens.length; i++) {
-    for (let j = tokens.length; j > i; j--) {
-      const frag = tokens.slice(i, j).join(' ');
-      const p = assistEncontrarParagem(frag);
-      if (p && !encontradas.includes(p)) {
-        encontradas.push(p);
-        i = j - 1;
-        break;
-      }
-    }
-    if (encontradas.length >= 2) break;
-  }
-  if (encontradas.length >= 2) return { origem: encontradas[0], destino: encontradas[1], sugestoes: [] };
-  if (encontradas.length === 1) return { origem: encontradas[0], destino: null, sugestoes: [] };
-
-  // Última tentativa: sugestões por aproximação sobre os tokens úteis.
-  const uteis = assistTokens(limpo);
-  const sugestoes = [];
-  for (const t of uteis) {
-    const s = assistSugerirParagem(t);
-    if (s && !sugestoes.some((x) => x.paragem === s.paragem)) {
-      sugestoes.push({ campo: sugestoes.length === 0 ? 'origem' : 'destino', termo: t, ...s });
-    }
-    if (sugestoes.length >= 2) break;
-  }
-  return { origem: null, destino: null, sugestoes };
+  achados.sort((a, b) => a.pos - b.pos);
+  return achados;
 }
 
-/* Deteta a data pedida ("hoje", "amanhã", dia da semana) e devolve ISO. */
-function assistInterpretarData(texto) {
-  const t = norm(texto);
+/*
+ * Extrator de data/dia da semana. Remove as expressões temporais do texto
+ * (devolve o texto limpo) e calcula a data ISO correspondente.
+ * Devolve { dataInfo, limpo }.
+ */
+function assistExtrairData(texto) {
+  let t = ' ' + norm(texto) + ' ';
   const hoje = new Date();
   const addDias = (n) => {
     const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + n);
-    const off = d.getTimezoneOffset();
-    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+    return { iso: assistISO(d), label: null };
   };
+  const remover = (re) => { t = t.replace(re, ' '); };
 
-  if (/\bdepois de amanha\b/.test(t)) return { iso: addDias(2), label: 'depois de amanhã' };
-  if (/\bamanha\b/.test(t)) return { iso: addDias(1), label: 'amanhã' };
-  if (/\bhoje\b/.test(t)) return { iso: addDias(0), label: 'hoje' };
+  // 1) "depois de amanhã" / "amanhã" / "hoje"
+  if (/\bdepois de amanha\b/.test(t)) {
+    remover(/\bdepois de amanha\b/g);
+    return { dataInfo: { ...addDias(2), label: 'depois de amanhã' }, limpo: t };
+  }
+  if (/\bamanha\b/.test(t)) {
+    remover(/\bamanha\b/g);
+    return { dataInfo: { ...addDias(1), label: 'amanhã' }, limpo: t };
+  }
+  if (/\bhoje\b/.test(t)) {
+    remover(/\bhoje\b/g);
+    return { dataInfo: { ...addDias(0), label: 'hoje' }, limpo: t };
+  }
 
-  const dias = [
-    { re: /\bdomingo\b/, dow: 0, label: 'domingo' },
-    { re: /\bsegunda(?:-feira)?\b/, dow: 1, label: 'segunda-feira' },
-    { re: /\bterca(?:-feira)?\b/, dow: 2, label: 'terça-feira' },
-    { re: /\bquarta(?:-feira)?\b/, dow: 3, label: 'quarta-feira' },
-    { re: /\bquinta(?:-feira)?\b/, dow: 4, label: 'quinta-feira' },
-    { re: /\bsexta(?:-feira)?\b/, dow: 5, label: 'sexta-feira' },
-    { re: /\bsabado\b/, dow: 6, label: 'sábado' },
-  ];
-  for (const d of dias) {
+  // 2) Data explícita "dia X" ou "X de [mês]" (com ano opcional).
+  const mDia = /\bdia\s+(\d{1,2})\b/.exec(t);
+  const mMes = /\b(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?\b/.exec(t);
+  let dia = null;
+  let mes = null;
+  let ano = null;
+  if (mMes && ASSIST_MESES[mMes[2]] !== undefined) {
+    dia = parseInt(mMes[1], 10);
+    mes = ASSIST_MESES[mMes[2]];
+    ano = mMes[3] ? parseInt(mMes[3], 10) : null;
+    remover(new RegExp(mMes[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'));
+  } else if (mDia) {
+    dia = parseInt(mDia[1], 10);
+    remover(/\bdia\s+\d{1,2}\b/g);
+  }
+
+  // 3) Dia da semana (pode coexistir com "dia X" para desambiguar).
+  let dow = null;
+  let dowLabel = null;
+  for (const d of ASSIST_DIAS) {
     if (d.re.test(t)) {
-      let delta = (d.dow - hoje.getDay() + 7) % 7;
-      if (delta === 0) delta = 7; // "próxima" ocorrência
-      return { iso: addDias(delta), label: d.label };
+      dow = d.dow;
+      dowLabel = d.label;
+      remover(new RegExp(d.re.source, 'g'));
+      break;
     }
   }
-  return null;
+
+  // Resolve a data a partir do que foi encontrado.
+  if (dia !== null) {
+    const base = new Date(hoje.getFullYear(), mes !== null ? mes : hoje.getMonth(), dia);
+    // Se a data já passou (e não foi dado ano), avança para o próximo mês/ano.
+    if (ano === null && base < new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())) {
+      base.setMonth(base.getMonth() + 1);
+    }
+    if (ano !== null) base.setFullYear(ano);
+    // Se também foi indicado um dia da semana, ajusta para o dow mais próximo.
+    if (dow !== null) {
+      let delta = (dow - base.getDay() + 7) % 7;
+      base.setDate(base.getDate() + delta);
+    }
+    const label = base.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+    return { dataInfo: { iso: assistISO(base), label }, limpo: t };
+  }
+
+  if (dow !== null) {
+    let delta = (dow - hoje.getDay() + 7) % 7;
+    if (delta === 0) delta = 7; // próxima ocorrência
+    return { dataInfo: { ...addDias(delta), label: dowLabel }, limpo: t };
+  }
+
+  return { dataInfo: null, limpo: t };
+}
+
+/*
+ * Motor de interpretação em camadas.
+ * Devolve { origem, destino, dataInfo, sugestoes, confianca }.
+ * - origem/destino: paragens identificadas com confiança.
+ * - sugestoes: [{ campo, termo, paragem, score }] quando a confiança é baixa.
+ */
+function assistInterpretar(texto) {
+  const bruto = String(texto || '').replace(/\s+/g, ' ').trim();
+  if (!bruto) return { origem: null, destino: null, dataInfo: null, sugestoes: [], confianca: 0 };
+
+  // Camada 1: extrair e remover a data/dia da semana.
+  const { dataInfo, limpo } = assistExtrairData(bruto);
+
+  // Camada 2: reconhecer paragens por janela deslizante no texto sem data.
+  const achados = assistReconhecerParagens(limpo);
+
+  // Limiar de confiança: correspondências exatas ou muito próximas são aceites
+  // diretamente; as restantes (fuzzy) passam a sugestões a confirmar.
+  const LIMIAR_FORTE = 0.85;
+
+  const fortes = achados.filter((a) => a.exato || a.score >= LIMIAR_FORTE);
+  const fracos = achados.filter((a) => !a.exato && a.score < LIMIAR_FORTE);
+
+  // Atribui origem/destino respeitando a ordem na frase: a primeira paragem
+  // (forte ou fraca) é a origem, a segunda é o destino.
+  const ordenados = [...achados].sort((a, b) => a.pos - b.pos);
+  const primeira = ordenados[0] || null;
+  const segunda = ordenados[1] || null;
+
+  const origem = primeira && (primeira.exato || primeira.score >= LIMIAR_FORTE) ? primeira.paragem : null;
+  const destino = segunda && (segunda.exato || segunda.score >= LIMIAR_FORTE) ? segunda.paragem : null;
+
+  // Confiança global: média dos scores das duas melhores correspondências fortes.
+  const confianca = fortes.length >= 2
+    ? (fortes[0].score + fortes[1].score) / 2
+    : (fortes[0]?.score || 0);
+
+  // Camada 3: sugestões a confirmar.
+  // (a) correspondências fuzzy encontradas na frase;
+  // (b) se ainda faltar uma paragem, tenta aproximar as palavras úteis restantes.
+  const sugestoes = [];
+  const jaSugeridas = new Set();
+
+  const adicionarSugestao = (campo, termo, res) => {
+    if (!res || jaSugeridas.has(norm(res.paragem))) return;
+    jaSugeridas.add(norm(res.paragem));
+    sugestoes.push({ campo, termo, paragem: res.paragem, score: res.score });
+  };
+
+  // Sugestões a partir das correspondências fracas, respeitando a posição.
+  for (const f of ordenados) {
+    if (f.exato || f.score >= LIMIAR_FORTE) continue;
+    const campo = !origem ? 'origem' : (!destino ? 'destino' : null);
+    if (!campo) break;
+    adicionarSugestao(campo, f.termo, f);
+  }
+
+  if (!origem || !destino) {
+    const usados = new Set(achados.map((a) => norm(a.paragem)));
+    for (const w of assistTokens(limpo)) {
+      if (w.length < 3) continue;
+      const res = assistPontuarParagem(w);
+      if (!res || usados.has(norm(res.paragem))) continue;
+      if (res.exato || res.score >= LIMIAR_FORTE) continue;
+      const campo = !origem ? 'origem' : 'destino';
+      adicionarSugestao(campo, w, res);
+      if (sugestoes.length >= 2) break;
+    }
+  }
+
+  return { origem, destino, dataInfo, sugestoes, confianca };
 }
 
 /* ---------------- Interface do assistente ---------------- */
@@ -1563,11 +1671,11 @@ function assistExecutarPesquisa(origem, destino, dataInfo) {
 
   // Conta os resultados efetivamente apresentados.
   const n = document.querySelectorAll('#results .viagem-toggle').length;
-  const quando = dataInfo ? ` ${dataInfo.label}` : '';
+  const quando = dataInfo ? ` para ${dataInfo.label}` : '';
 
   if (n === 0) {
     assistMensagem(
-      `Não encontrei viagens entre ${origem} e ${destino}${quando}. Tenta outra data ou verifica as paragens.`
+      `A pesquisar ${origem} ➔ ${destino}${quando}... Não encontrei viagens. Tenta outra data ou verifica as paragens.`
     );
     return;
   }
@@ -1575,7 +1683,7 @@ function assistExecutarPesquisa(origem, destino, dataInfo) {
   const primeira = document.querySelector('#results .viagem-hora-partida')?.textContent?.trim();
   const hora = primeira ? ` A primeira partida é às ${primeira}.` : '';
   assistMensagem(
-    `Encontrei ${n} ${n === 1 ? 'viagem' : 'viagens'} entre ${origem} e ${destino}${quando}.${hora}`,
+    `A pesquisar ${origem} ➔ ${destino}${quando}... Encontrei ${n} ${n === 1 ? 'viagem' : 'viagens'}.${hora}`,
     'bot',
     `<div class="mt-2"><button type="button" class="assist-ver-resultados rounded-full bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95">Ver resultados</button></div>`
   );
@@ -1646,10 +1754,9 @@ function assistProcessar(texto) {
   setTimeout(() => {
     typing?.remove();
 
-    const { origem, destino, sugestoes } = assistInterpretar(msg);
-    const dataInfo = assistInterpretarData(msg);
+    const { origem, destino, dataInfo, sugestoes } = assistInterpretar(msg);
 
-    // Caso 1: ambas as paragens identificadas com confiança.
+    // Caso 1: ambas as paragens identificadas com confiança -> executa logo.
     if (origem && destino) {
       assistExecutarPesquisa(origem, destino, dataInfo);
       return;
@@ -1657,8 +1764,7 @@ function assistProcessar(texto) {
 
     // Caso 2: há sugestões por aproximação (para um ou ambos os lados).
     if (sugestoes && sugestoes.length) {
-      const s = sugestoes[0];
-      assistConfirmarSugestao(s, { origem, destino, dataInfo });
+      assistConfirmarSugestao(sugestoes[0], { origem, destino, dataInfo });
       return;
     }
 
