@@ -68,9 +68,38 @@
     }
 
     /* Estrela de favorito */
-    .fav-btn svg { transition: transform .18s ease, color .18s ease; }
+    .fav-btn svg { transition: color 0.3s ease, transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     .fav-btn:active svg { transform: scale(.82); }
     .fav-btn.is-fav svg { color: #E65100; fill: #E65100; }
+
+    /* Micro-animação ao guardar/remover (giro + escala) */
+    @keyframes fav-pop {
+      0%   { transform: scale(1) rotate(0deg); }
+      50%  { transform: scale(1.35) rotate(180deg); }
+      100% { transform: scale(1) rotate(360deg); }
+    }
+    .fav-btn.fav-pop svg { animation: fav-pop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    /* Remoção: a estrela "atropela" o cartão, da direita para a esquerda */
+    .fav-cartao.fav-remover { pointer-events: none; }
+    .fav-cartao.fav-remover .fav-btn { z-index: 30; }
+    .fav-cartao.fav-remover .fav-btn svg {
+      animation: fav-atropela 0.5s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+    }
+    @keyframes fav-atropela {
+      0%   { transform: translateX(0) scale(1) rotate(0deg); }
+      35%  { transform: translateX(-30%) scale(2.6) rotate(-140deg); }
+      100% { transform: translateX(-320%) scale(3.4) rotate(-360deg); }
+    }
+    /* O cartão colapsa como se tivesse sido varrido */
+    .fav-cartao.fav-remover {
+      animation: fav-colapsa 0.5s ease-in forwards;
+    }
+    @keyframes fav-colapsa {
+      0%   { opacity: 1; max-height: 400px; }
+      55%  { opacity: .35; max-height: 400px; }
+      100% { opacity: 0; max-height: 0; margin: 0; padding: 0; overflow: hidden; }
+    }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
@@ -130,7 +159,15 @@
             </span>
             <input id="origem" type="text" list="stops-list" inputmode="search"
                    placeholder="Ex.: Beja, Évora, Portalegre…"
-                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-12 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+            <button type="button" id="btn-lista-origem" data-lista="origem"
+                    title="Escolher paragem de origem" aria-label="Escolher paragem de origem"
+                    class="lista-btn absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition hover:bg-brand-50 hover:text-brand-600 active:scale-95">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -155,7 +192,15 @@
             </span>
             <input id="destino" type="text" list="stops-list" inputmode="search"
                    placeholder="Ex.: Estação Rodoviária, Vila de Frades…"
-                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-12 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+            <button type="button" id="btn-lista-destino" data-lista="destino"
+                    title="Escolher paragem de destino" aria-label="Escolher paragem de destino"
+                    class="lista-btn absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition hover:bg-brand-50 hover:text-brand-600 active:scale-95">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -189,7 +234,42 @@
 
   <datalist id="stops-list"></datalist>
 
-  <script src="app.js?v=5"></script>
+  <!-- ============ MODAL: SELETOR DE PARAGENS ============ -->
+  <div id="seletor-paragens" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="seletor-titulo">
+    <!-- Fundo semi-transparente -->
+    <div id="seletor-overlay" class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+
+    <!-- Painel -->
+    <div class="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:inset-0 sm:my-auto sm:h-[80vh] sm:rounded-3xl">
+      <!-- Cabeçalho -->
+      <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <h2 id="seletor-titulo" class="text-base font-bold text-slate-900">Escolher Paragem</h2>
+        <button type="button" id="seletor-fechar" aria-label="Fechar"
+                class="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Pesquisa -->
+      <div class="border-b border-slate-100 px-5 py-3">
+        <div class="relative">
+          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          </span>
+          <input id="seletor-pesquisa" type="text" inputmode="search" autocomplete="off"
+                 placeholder="Pesquisar paragem…"
+                 class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+        </div>
+      </div>
+
+      <!-- Lista -->
+      <div id="seletor-lista" class="flex-1 overflow-y-auto overscroll-contain px-2 py-2"></div>
+    </div>
+  </div>
+
+  <script src="app.js?v=12"></script>
 </body>
 </html>
 

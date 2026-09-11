@@ -166,6 +166,115 @@ function populateDatalist() {
   }
 }
 
+/* ---------------- Seletor visual de paragens (modal) ---------------- */
+
+let seletorCampo = null; // 'origem' | 'destino'
+
+/* Abre o modal do seletor de paragens para o campo indicado. */
+function abrirSeletorParagens(campo) {
+  seletorCampo = campo;
+  const modal = document.getElementById('seletor-paragens');
+  const titulo = document.getElementById('seletor-titulo');
+  const pesquisa = document.getElementById('seletor-pesquisa');
+
+  titulo.textContent = campo === 'origem' ? 'Escolher Paragem de Origem' : 'Escolher Paragem de Destino';
+  pesquisa.value = '';
+  renderListaParagens('');
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  // Foco automático na barra de pesquisa (após o modal ficar visível).
+  setTimeout(() => {
+    pesquisa.focus({ preventScroll: true });
+  }, 80);
+}
+
+/* Fecha o modal do seletor de paragens. */
+function fecharSeletorParagens() {
+  const modal = document.getElementById('seletor-paragens');
+  if (modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+  seletorCampo = null;
+}
+
+/* Renderiza a lista de paragens agrupada por letra inicial. */
+function renderListaParagens(filtro) {
+  const box = document.getElementById('seletor-lista');
+  const termo = norm(filtro || '');
+  const lista = state.stops.filter((s) => !termo || norm(s).includes(termo));
+
+  if (!lista.length) {
+    box.innerHTML = `
+      <p class="px-4 py-10 text-center text-sm font-medium text-slate-400">
+        Nenhuma paragem encontrada.
+      </p>`;
+    return;
+  }
+
+  let html = '';
+  let letraAtual = '';
+  for (const nome of lista) {
+    // Agrupa pela letra inicial sem acentos (Á -> A).
+    const letra = (norm(nome)[0] || '#').toUpperCase();
+    if (letra !== letraAtual) {
+      letraAtual = letra;
+      html += `
+        <div class="sticky top-0 z-10 bg-white/95 px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-brand-600 backdrop-blur">
+          ${esc(letra)}
+        </div>`;
+    }
+    html += `
+      <button type="button" class="paragem-opcao flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-brand-50 hover:text-brand-700 active:bg-brand-100"
+              data-paragem="${esc(nome)}">
+        <span class="pointer-events-none text-slate-300" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        </span>
+        <span class="min-w-0 flex-1 truncate">${esc(nome)}</span>
+      </button>`;
+  }
+  box.innerHTML = html;
+}
+
+/* Escolhe uma paragem: preenche o campo, fecha o modal e valida. */
+function escolherParagem(nome) {
+  if (!seletorCampo) return;
+  const input = document.getElementById(seletorCampo);
+  input.value = nome;
+  fecharSeletorParagens();
+  input.focus();
+  const origem = document.getElementById('origem').value.trim();
+  const destino = document.getElementById('destino').value.trim();
+  if (origem && destino) runSearch();
+}
+
+/* Liga os eventos do seletor de paragens. */
+function ligarSeletorParagens() {
+  document.querySelectorAll('.lista-btn').forEach((btn) => {
+    btn.addEventListener('click', () => abrirSeletorParagens(btn.dataset.lista));
+  });
+
+  document.getElementById('seletor-fechar').addEventListener('click', fecharSeletorParagens);
+  document.getElementById('seletor-overlay').addEventListener('click', fecharSeletorParagens);
+
+  const pesquisa = document.getElementById('seletor-pesquisa');
+  pesquisa.addEventListener('input', () => renderListaParagens(pesquisa.value));
+
+  // Delegação: clique numa paragem da lista.
+  document.getElementById('seletor-lista').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.paragem-opcao');
+    if (btn) escolherParagem(btn.dataset.paragem);
+  });
+
+  // Fechar com a tecla Escape.
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !document.getElementById('seletor-paragens').classList.contains('hidden')) {
+      ev.preventDefault();
+      fecharSeletorParagens();
+    }
+  }, true);
+}
+
 /* ---------------- Emparelhamento partida/chegada ---------------- */
 
 /* Dado o array de partidas e o array de chegadas (podem ter tamanhos
@@ -614,10 +723,22 @@ function alternarFavorito(trip) {
       chegada: trip.chegada,
       linha: Array.isArray(trip.linhas) ? trip.linhas.join(', ') : (trip.linha || ''),
       operador: Array.isArray(trip.operadores) ? trip.operadores.join(', ') : (trip.operador || ''),
+      // Guarda a rota completa para o acordeão na aba Guardados.
+      rota: Array.isArray(trip.rota) ? trip.rota : [],
     });
   }
   gravarFavoritos();
   return favoritos.has(key);
+}
+
+/* Dispara a micro-animação (giro + escala) da estrela. */
+function animarEstrela(btn) {
+  if (!btn) return;
+  btn.classList.remove('fav-pop');
+  // Força o reinício da animação em cliques consecutivos.
+  void btn.offsetWidth;
+  btn.classList.add('fav-pop');
+  btn.addEventListener('animationend', () => btn.classList.remove('fav-pop'), { once: true });
 }
 
 /* Liga os botões de estrela dos cartões de resultado. */
@@ -635,6 +756,7 @@ function ligarFavoritos() {
       const label = agoraFav ? 'Remover dos guardados' : 'Guardar viagem';
       btn.setAttribute('aria-label', label);
       btn.title = label;
+      animarEstrela(btn);
     });
   });
 }
@@ -774,8 +896,8 @@ function rebuildTrips() {
 
 /* ---------------- Vista: Guardados ---------------- */
 
-/* Cartão de uma viagem guardada, com acesso rápido. */
-function favoritoCard(fav) {
+/* Cartão de uma viagem guardada, com acordeão da rota completa. */
+function favoritoCard(fav, index) {
   const dur = duracaoLabel(fav.partida, fav.chegada);
   const linha = fav.linha
     ? `<span class="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">${esc(fav.linha)}</span>`
@@ -784,11 +906,23 @@ function favoritoCard(fav) {
     ? `<span class="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white">${esc(fav.operador)}</span>`
     : '';
 
+  const rota = (fav.rota || []).map(rotaLinha).join('');
+  const nParagens = (fav.rota || []).length;
+  const detalhe = nParagens
+    ? `
+      <div id="fav-rota-${index}" class="viagem-detalhe hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Rota completa · ${nParagens} ${nParagens === 1 ? 'paragem' : 'paragens'}
+        </p>
+        <ul class="relative ml-1 border-l border-slate-200 pl-4">${rota}</ul>
+      </div>`
+    : '';
+
   return `
-    <li class="relative">
+    <li class="fav-cartao relative overflow-hidden">
       <button type="button"
-              class="fav-abrir flex w-full items-stretch gap-4 px-4 py-4 pr-12 text-left transition hover:bg-slate-50/70 focus:outline-none focus-visible:bg-slate-50"
-              data-origem="${esc(fav.origem)}" data-destino="${esc(fav.destino)}">
+              class="viagem-toggle flex w-full items-stretch gap-4 px-4 py-4 pr-12 text-left transition hover:bg-slate-50/70 focus:outline-none focus-visible:bg-slate-50"
+              aria-expanded="false" aria-controls="fav-rota-${index}">
         <div class="flex w-14 shrink-0 flex-col items-center">
           <span class="text-xl font-extrabold tabular-nums leading-none text-slate-900">${esc(fav.partida)}</span>
           <span class="mt-1 h-full w-px flex-1 bg-slate-200"></span>
@@ -799,12 +933,12 @@ function favoritoCard(fav) {
           <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
             ${linha}
             ${operador}
-            ${dur ? `<span class="text-[11px] font-semibold text-slate-400">${esc(dur)} de viagem</span>` : ''}
+            ${dur ? `<span class="text-[11px] font-semibold text-slate-500">${esc(dur)} de viagem</span>` : ''}
           </div>
         </div>
         <div class="flex shrink-0 items-center">
-          <svg viewBox="0 0 24 24" class="h-5 w-5 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m9 6 6 6-6 6" />
+          <svg viewBox="0 0 24 24" class="viagem-seta h-5 w-5 text-slate-400 transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </div>
       </button>
@@ -815,6 +949,8 @@ function favoritoCard(fav) {
               aria-label="Remover dos guardados" title="Remover dos guardados">
         ${estrelaSVG()}
       </button>
+
+      ${detalhe}
     </li>`;
 }
 
@@ -838,7 +974,7 @@ function renderFavoritos() {
     return;
   }
 
-  const rows = lista.map(favoritoCard).join('');
+  const rows = lista.map((fav, i) => favoritoCard(fav, i)).join('');
   box.innerHTML = `
     <div class="mb-2 flex items-center justify-between px-1">
       <h2 class="text-sm font-bold text-slate-700">${lista.length} viage${lista.length === 1 ? 'm' : 'ns'} guardada${lista.length === 1 ? '' : 's'}</h2>
@@ -850,27 +986,50 @@ function renderFavoritos() {
   ligarFavoritosGuardados();
 }
 
-/* Liga os cartões guardados: abrir (pesquisar) e remover. */
+/* Liga os cartões guardados: acordeão da rota e remoção animada. */
 function ligarFavoritosGuardados() {
   const box = document.getElementById('favoritos');
 
-  box.querySelectorAll('.fav-abrir').forEach((btn) => {
+  // Acordeão: expande/recolhe a rota completa (igual à pesquisa).
+  box.querySelectorAll('.viagem-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const origem = btn.getAttribute('data-origem');
-      const destino = btn.getAttribute('data-destino');
-      document.getElementById('origem').value = origem;
-      document.getElementById('destino').value = destino;
-      mudarAba('pesquisa');
-      runSearch();
+      const detalhe = document.getElementById(btn.getAttribute('aria-controls'));
+      const seta = btn.querySelector('.viagem-seta');
+      if (!detalhe) return;
+      const aberto = !detalhe.classList.contains('hidden');
+      detalhe.classList.toggle('hidden', aberto);
+      btn.setAttribute('aria-expanded', String(!aberto));
+      if (seta) seta.classList.toggle('rotate-180', !aberto);
     });
   });
 
+  // Os links do Google Maps não devem abrir/fechar o accordion.
+  box.querySelectorAll('.mapa-link').forEach((link) => {
+    link.addEventListener('click', (ev) => ev.stopPropagation());
+  });
+
+  // Remoção: a estrela "atropela" o cartão e este colapsa.
   box.querySelectorAll('[data-fav-remover]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      favoritos.delete(btn.getAttribute('data-fav-remover'));
+      const chave = btn.getAttribute('data-fav-remover');
+      const cartao = btn.closest('.fav-cartao');
+      if (!cartao || cartao.classList.contains('fav-remover')) return;
+
+      // Bloqueia cliques adicionais no cartão durante a animação.
+      cartao.classList.add('fav-remover');
+
+      // Atualiza o estado e o localStorage imediatamente.
+      favoritos.delete(chave);
       gravarFavoritos();
-      renderFavoritos();
+
+      // Remove fisicamente o elemento após a animação.
+      const remover = () => {
+        cartao.remove();
+        if (!favoritos.size) renderFavoritos();
+      };
+      cartao.addEventListener('animationend', remover, { once: true });
+      setTimeout(remover, 600); // salvaguarda
     });
   });
 }
@@ -996,6 +1155,7 @@ async function init() {
   carregarManuais();
   mudarAba('pesquisa');
   bindEvents();
+  ligarSeletorParagens();
 
   try {
     await loadData();
