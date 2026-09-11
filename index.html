@@ -46,9 +46,10 @@
     html { -webkit-text-size-adjust: 100%; }
     body { -webkit-tap-highlight-color: transparent; }
 
-    /* Viagem já partida (só quando a data é hoje) */
-    .viagem-passada { opacity: .5; filter: saturate(.7); }
-    .viagem-passada:hover { opacity: .85; }
+    /* Viagem já partida (só quando a data é hoje).
+       Mantém contraste pleno — apenas um leve tom de fundo para distinguir. */
+    .viagem-passada { background-color: #f8fafc; }
+    .viagem-passada .viagem-hora-partida { color: #475569; }
 
     /* Próxima partida */
     .viagem-proxima {
@@ -188,7 +189,7 @@
 
   <datalist id="stops-list"></datalist>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
 

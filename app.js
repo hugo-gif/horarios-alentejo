@@ -361,6 +361,24 @@ function consolidar(trips) {
 
 /* ---------------- Renderização ---------------- */
 
+/* Ícone de localização (Google Maps). */
+function mapaSVG() {
+  return `<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>`;
+}
+
+/* Link discreto para o Google Maps de uma paragem. */
+function mapaLink(nome) {
+  const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(nome + ' Alentejo');
+  return `<a href="${url}" target="_blank" rel="noopener"
+             class="mapa-link inline-flex shrink-0 items-center justify-center rounded-full p-0.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-600"
+             data-mapa="1"
+             aria-label="Ver ${esc(nome)} no Google Maps"
+             title="Ver no Google Maps">${mapaSVG()}</a>`;
+}
+
 /* Linha da rota detalhada (paragem intermédia). */
 function rotaLinha(p) {
   const destaque = p.isOrigem || p.isDestino;
@@ -370,12 +388,13 @@ function rotaLinha(p) {
       ? 'bg-slate-900'
       : 'bg-slate-300';
   const nomeCls = destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-600';
-  const horaCls = destaque ? 'font-bold text-slate-900' : 'text-slate-400';
+  const horaCls = destaque ? 'font-bold text-slate-900' : 'text-slate-500';
 
   return `
     <li class="flex items-center gap-3 py-1.5">
       <span class="relative z-10 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white ${ponto}"></span>
       <span class="min-w-0 flex-1 truncate text-xs ${nomeCls}">${esc(p.nome)}</span>
+      ${mapaLink(p.nome)}
       <span class="shrink-0 text-xs tabular-nums ${horaCls}">${p.hora ? esc(p.hora) : '—'}</span>
     </li>`;
 }
@@ -391,7 +410,9 @@ function tripCard(trip, isNext, isPast, index) {
   const cls = isNext ? 'viagem-proxima bg-brand-50/60' : (isPast ? 'viagem-passada' : '');
   const badge = isNext
     ? '<span class="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Próxima</span>'
-    : '';
+    : (isPast
+      ? '<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Já partiu</span>'
+      : '');
   const dur = duracaoLabel(trip.partida, trip.chegada);
 
   const operadores = trip.operadores
@@ -416,19 +437,30 @@ function tripCard(trip, isNext, isPast, index) {
               class="viagem-toggle flex w-full items-stretch gap-4 px-4 py-4 pr-12 text-left transition hover:bg-slate-50/70 focus:outline-none focus-visible:bg-slate-50"
               aria-expanded="false" aria-controls="rota-${index}">
         <div class="flex w-14 shrink-0 flex-col items-center">
-          <span class="text-xl font-extrabold tabular-nums leading-none text-slate-900">${esc(trip.partida)}</span>
+          <span class="viagem-hora-partida text-xl font-extrabold tabular-nums leading-none text-slate-900">${esc(trip.partida)}</span>
           <span class="mt-1 h-full w-px flex-1 bg-slate-200"></span>
           <span class="mt-1 text-sm font-bold tabular-nums leading-none text-slate-500">${esc(trip.chegada)}</span>
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             ${badge}
-            ${dur ? `<span class="text-[11px] font-semibold text-slate-400">${esc(dur)} de viagem</span>` : ''}
+            ${dur ? `<span class="text-[11px] font-semibold text-slate-500">${esc(dur)} de viagem</span>` : ''}
           </div>
           <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
             ${linhas}
             ${operadores}
             ${tipos}
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
+            <span class="inline-flex min-w-0 items-center gap-1">
+              <span class="truncate font-semibold text-slate-800">${esc(trip.origem)}</span>
+              ${mapaLink(trip.origem)}
+            </span>
+            <span class="text-slate-400" aria-hidden="true">→</span>
+            <span class="inline-flex min-w-0 items-center gap-1">
+              <span class="truncate font-semibold text-slate-800">${esc(trip.destino)}</span>
+              ${mapaLink(trip.destino)}
+            </span>
           </div>
         </div>
         <div class="flex shrink-0 items-center">
@@ -517,6 +549,11 @@ function ligarAcordeoes() {
       btn.setAttribute('aria-expanded', String(!aberto));
       if (seta) seta.classList.toggle('rotate-180', !aberto);
     });
+  });
+
+  // Os links do Google Maps não devem abrir/fechar o accordion.
+  box.querySelectorAll('.mapa-link').forEach((link) => {
+    link.addEventListener('click', (ev) => ev.stopPropagation());
   });
 }
 
