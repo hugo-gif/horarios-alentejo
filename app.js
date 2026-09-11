@@ -761,6 +761,25 @@ function ligarFavoritos() {
   });
 }
 
+/*
+ * Sincroniza o estado visual de TODAS as estrelas presentes no DOM com a
+ * lista de favoritos atual (fonte de verdade: localStorage / Map `favoritos`).
+ * Corrige a dessincronização quando uma viagem é removida noutra aba.
+ */
+function syncFavoriteButtons() {
+  document.querySelectorAll('.fav-btn').forEach((btn) => {
+    // Os cartões de resultado usam data-fav; os guardados usam data-fav-remover.
+    const key = btn.getAttribute('data-fav') || btn.getAttribute('data-fav-remover');
+    if (!key) return;
+    const ativo = favoritos.has(key);
+    btn.classList.toggle('is-fav', ativo);
+    btn.setAttribute('aria-pressed', String(ativo));
+    const label = ativo ? 'Remover dos guardados' : 'Guardar viagem';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  });
+}
+
 /* Mapa auxiliar chave -> viagem consolidada (para o clique da estrela). */
 let viagensPorChave = new Map();
 
@@ -1023,6 +1042,16 @@ function ligarFavoritosGuardados() {
       favoritos.delete(chave);
       gravarFavoritos();
 
+      // Se os resultados da pesquisa ainda estiverem montados em segundo
+      // plano, atualiza já a estrela correspondente desse resultado.
+      const estrelaResultado = document.querySelector(`#results .fav-btn[data-fav="${CSS.escape(chave)}"]`);
+      if (estrelaResultado) {
+        estrelaResultado.classList.remove('is-fav');
+        estrelaResultado.setAttribute('aria-pressed', 'false');
+        estrelaResultado.setAttribute('aria-label', 'Guardar viagem');
+        estrelaResultado.title = 'Guardar viagem';
+      }
+
       // Remove fisicamente o elemento após a animação.
       const remover = () => {
         cartao.remove();
@@ -1055,6 +1084,8 @@ function mudarAba(nome) {
   }
 
   if (nome === 'guardados') renderFavoritos();
+  // Ao voltar à pesquisa, garante que as estrelas refletem os favoritos atuais.
+  if (nome === 'pesquisa') syncFavoriteButtons();
 }
 
 function setStatus(message, isError = false) {
