@@ -15,7 +15,7 @@
    4) Timeline cronológica única.
    ============================================================= */
 
-const DATA_URL = 'horarios.json';
+const DATA_URL = './horarios.json';
 
 const state = {
   data: null, // conteúdo de horarios.json
@@ -131,7 +131,7 @@ function circulaNoDia(tipo, diaSemana) {
 /* ---------------- Carregamento ---------------- */
 
 async function loadData() {
-  const res = await fetch(DATA_URL);
+  const res = await fetch(DATA_URL, { cache: 'no-store' });
   if (!res.ok) {
     throw new Error('Não foi possível carregar ' + DATA_URL + ' (HTTP ' + res.status + ')');
   }
