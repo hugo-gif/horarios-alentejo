@@ -1125,6 +1125,596 @@ function atualizarInfoData() {
   info.className = `mt-1.5 text-xs font-medium ${fimSemana ? 'text-slate-900' : 'text-brand-700'}`;
 }
 
+/* ---------------- Reportes de erros (localStorage) ---------------- */
+
+const REPORTES_KEY = 'ra_reportes_erros';
+
+function carregarReportes() {
+  try {
+    const raw = localStorage.getItem(REPORTES_KEY);
+    const lista = raw ? JSON.parse(raw) : [];
+    return Array.isArray(lista) ? lista : [];
+  } catch (err) {
+    console.warn('Reportes ilegíveis:', err);
+    return [];
+  }
+}
+
+function gravarReportes(lista) {
+  try {
+    localStorage.setItem(REPORTES_KEY, JSON.stringify(lista));
+  } catch (err) {
+    console.warn('Não foi possível gravar reportes:', err);
+  }
+}
+
+function abrirReporte() {
+  const modal = document.getElementById('reporte-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('rep-email')?.focus({ preventScroll: true }), 80);
+}
+
+function fecharReporte() {
+  const modal = document.getElementById('reporte-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function submeterReporte(e) {
+  e.preventDefault();
+  const email = document.getElementById('rep-email').value.trim();
+  const assunto = document.getElementById('rep-assunto').value.trim();
+  const mensagem = document.getElementById('rep-mensagem').value.trim();
+  const erro = document.getElementById('rep-erro');
+
+  const mostrarErro = (txt) => {
+    if (!erro) return;
+    erro.textContent = txt;
+    erro.classList.remove('hidden');
+  };
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    mostrarErro('Indica um email de contacto válido.');
+    return;
+  }
+  if (!assunto) { mostrarErro('Indica o assunto ou a linha.'); return; }
+  if (!mensagem) { mostrarErro('Descreve o erro encontrado.'); return; }
+  erro?.classList.add('hidden');
+
+  const lista = carregarReportes();
+  lista.push({
+    id: 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    data: new Date().toISOString(),
+    email,
+    assunto,
+    mensagem,
+    lida: false,
+  });
+  gravarReportes(lista);
+
+  // Confirmação visual e fecho.
+  document.getElementById('reporte-form').reset();
+  fecharReporte();
+  mostrarToast('Reporte enviado. Obrigado pela ajuda!');
+}
+
+/* Pequeno toast de confirmação. */
+function mostrarToast(texto) {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-xl transition-all duration-300';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = texto;
+  toast.style.opacity = '0';
+  toast.style.transform = 'translate(-50%, 8px)';
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translate(-50%, 0)';
+  });
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translate(-50%, 8px)';
+  }, 2600);
+}
+
+function ligarReporte() {
+  const btn = document.getElementById('info-btn');
+  const fechar = document.getElementById('reporte-fechar');
+  const overlay = document.getElementById('reporte-overlay');
+  const form = document.getElementById('reporte-form');
+  if (!btn || !form) return;
+
+  btn.addEventListener('click', abrirReporte);
+  fechar?.addEventListener('click', fecharReporte);
+  overlay?.addEventListener('click', fecharReporte);
+  form.addEventListener('submit', submeterReporte);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('reporte-modal')?.classList.contains('hidden')) {
+      fecharReporte();
+    }
+  });
+}
+
+/* ---------------- Assistente Inteligente (100% frontend) ---------------- */
+
+const ASSIST_SAUDACAO = 'Olá! Escreve de onde sais e para onde queres ir (ex: Lisboa para Évora amanhã).';
+
+const ASSIST_SUGESTOES = [
+  'Beja para Évora',
+  'Évora para Estremoz amanhã',
+  'Lisboa para Portalegre',
+];
+
+/* Palavras que não ajudam a identificar paragens. */
+const ASSIST_STOPWORDS = new Set([
+  'de', 'do', 'da', 'dos', 'das', 'para', 'pra', 'pro', 'a', 'o', 'as', 'os',
+  'e', 'em', 'no', 'na', 'nos', 'nas', 'ate', 'ao', 'aos', 'que', 'quero', 'ir',
+  'sair', 'saio', 'parto', 'partida', 'chegar', 'chego', 'viagem', 'viagens',
+  'autocarro', 'autocarros', 'bus', 'horario', 'horarios', 'horas', 'hora',
+  'por', 'favor', 'pf', 'me', 'leva', 'levar', 'como', 'vou', 'gostaria',
+  'preciso', 'queria', 'saber', 'ver', 'mostra', 'mostrar', 'dia', 'hoje',
+  'amanha', 'depois', 'proxima', 'proximo', 'seguinte', 'sabado', 'domingo',
+  'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'feira', 'util', 'uteis',
+  'fim', 'semana', 'manha', 'tarde', 'noite', 'cerca', 'mais',
+  'menos', 'primeiro', 'primeira', 'ultimo', 'ultima', 'entre', 'desde',
+]);
+
+/* Remove acentos e pontuação, devolve tokens úteis. */
+function assistTokens(texto) {
+  return norm(texto)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length >= 2 && !ASSIST_STOPWORDS.has(t));
+}
+
+/*
+ * Encontra a paragem conhecida que melhor corresponde a um fragmento de texto.
+ * Estratégia: (1) igualdade exata normalizada; (2) a paragem contém o termo;
+ * (3) o termo contém a paragem; (4) melhor pontuação por tokens em comum.
+ */
+function assistEncontrarParagem(fragmento) {
+  const alvo = norm(fragmento).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!alvo) return null;
+
+  // 1) Igualdade exata
+  for (const paragem of state.stops) {
+    if (norm(paragem) === alvo) return paragem;
+  }
+
+  // 2) A paragem contém o termo (ex.: "evora" -> "Évora")
+  const contem = state.stops.filter((p) => norm(p).includes(alvo));
+  if (contem.length) {
+    // Prefere a que começa pelo termo e, em empate, a mais curta (mais específica).
+    contem.sort((a, b) => {
+      const ca = norm(a).startsWith(alvo) ? 0 : 1;
+      const cb = norm(b).startsWith(alvo) ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      return a.length - b.length;
+    });
+    return contem[0];
+  }
+
+  // 3) O termo contém a paragem (ex.: "estacao rodoviaria de beja" -> "Beja")
+  const contido = state.stops.filter((p) => alvo.includes(norm(p)));
+  if (contido.length) {
+    contido.sort((a, b) => b.length - a.length);
+    return contido[0];
+  }
+
+  // 4) Pontuação por tokens em comum
+  const tokens = assistTokens(fragmento);
+  if (!tokens.length) return null;
+  let melhor = null;
+  let melhorScore = 0;
+  for (const paragem of state.stops) {
+    const pTokens = assistTokens(paragem);
+    if (!pTokens.length) continue;
+    let score = 0;
+    for (const t of tokens) {
+      if (pTokens.some((pt) => pt === t)) score += 2;
+      else if (pTokens.some((pt) => pt.startsWith(t) || t.startsWith(pt))) score += 1;
+    }
+    if (score > melhorScore) { melhorScore = score; melhor = paragem; }
+  }
+  return melhorScore >= 2 ? melhor : null;
+}
+
+/* Distância de Levenshtein (para sugestões por aproximação). */
+function assistLevenshtein(a, b) {
+  const s = String(a || '');
+  const t = String(b || '');
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  let prev = Array.from({ length: t.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= s.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= t.length; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[t.length];
+}
+
+/*
+ * Sugestão por aproximação: encontra a paragem mais parecida com o termo
+ * escrito (mesmo com gralhas, ex.: "portaleg" -> "Portalegre", "evra" -> "Évora").
+ * Devolve { paragem, distancia, confianca } ou null.
+ */
+function assistSugerirParagem(termo) {
+  const alvo = norm(termo).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (alvo.length < 3) return null;
+
+  let melhor = null;
+  let melhorDist = Infinity;
+  for (const paragem of state.stops) {
+    const p = norm(paragem);
+    // Compara com a paragem inteira e com cada palavra (ex.: "Évora" em "Évora (Terminal)").
+    const candidatos = [p, ...p.split(' ')];
+    for (const c of candidatos) {
+      if (!c) continue;
+      // Prefixo: "portaleg" é prefixo de "portalegre" -> distância baixa.
+      const dist = c.startsWith(alvo) || alvo.startsWith(c)
+        ? Math.abs(c.length - alvo.length)
+        : assistLevenshtein(alvo, c);
+      if (dist < melhorDist) { melhorDist = dist; melhor = paragem; }
+    }
+  }
+  if (!melhor) return null;
+
+  // Limiar: aceita até ~40% de diferença face ao comprimento do termo.
+  const limite = Math.max(2, Math.ceil(alvo.length * 0.4));
+  if (melhorDist > limite) return null;
+
+  const confianca = 1 - melhorDist / Math.max(alvo.length, norm(melhor).length);
+  return { paragem: melhor, distancia: melhorDist, confianca };
+}
+
+/* Interpreta "de X para Y", "X para Y", "X -> Y", "X a Y", etc. */
+function assistInterpretar(texto) {
+  const limpo = String(texto || '').replace(/\s+/g, ' ').trim();
+  if (!limpo) return { origem: null, destino: null, sugestoes: [] };
+
+  // Padrões com separadores explícitos.
+  const padroes = [
+    /\bde\s+(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
+    /\b(?:desde|partindo de)\s+(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
+    /(.+?)\s*(?:->|→|=>|>)\s*(.+)$/,
+    /\b(?:ir|vou|quero ir|queria ir)\s+(?:de\s+)?(.+?)\s+(?:para|pra|pro|ate|até|a)\s+(.+)$/i,
+    /^(.+?)\s+(?:para|pra|pro|ate|até)\s+(.+)$/i,
+  ];
+
+  for (const re of padroes) {
+    const m = re.exec(limpo);
+    if (m) {
+      const origem = assistEncontrarParagem(m[1]);
+      const destino = assistEncontrarParagem(m[2]);
+      // Gera sugestões por aproximação para o lado que não teve correspondência exata.
+      const sugestoes = [];
+      if (!origem) {
+        const s = assistSugerirParagem(m[1]);
+        if (s) sugestoes.push({ campo: 'origem', termo: m[1].trim(), ...s });
+      }
+      if (!destino) {
+        const s = assistSugerirParagem(m[2]);
+        if (s) sugestoes.push({ campo: 'destino', termo: m[2].trim(), ...s });
+      }
+      if (origem || destino || sugestoes.length) return { origem, destino, sugestoes };
+    }
+  }
+
+  // Sem separador: tenta encontrar duas paragens distintas na frase.
+  const tokens = limpo.split(/\s+/);
+  const encontradas = [];
+  for (let i = 0; i < tokens.length; i++) {
+    for (let j = tokens.length; j > i; j--) {
+      const frag = tokens.slice(i, j).join(' ');
+      const p = assistEncontrarParagem(frag);
+      if (p && !encontradas.includes(p)) {
+        encontradas.push(p);
+        i = j - 1;
+        break;
+      }
+    }
+    if (encontradas.length >= 2) break;
+  }
+  if (encontradas.length >= 2) return { origem: encontradas[0], destino: encontradas[1], sugestoes: [] };
+  if (encontradas.length === 1) return { origem: encontradas[0], destino: null, sugestoes: [] };
+
+  // Última tentativa: sugestões por aproximação sobre os tokens úteis.
+  const uteis = assistTokens(limpo);
+  const sugestoes = [];
+  for (const t of uteis) {
+    const s = assistSugerirParagem(t);
+    if (s && !sugestoes.some((x) => x.paragem === s.paragem)) {
+      sugestoes.push({ campo: sugestoes.length === 0 ? 'origem' : 'destino', termo: t, ...s });
+    }
+    if (sugestoes.length >= 2) break;
+  }
+  return { origem: null, destino: null, sugestoes };
+}
+
+/* Deteta a data pedida ("hoje", "amanhã", dia da semana) e devolve ISO. */
+function assistInterpretarData(texto) {
+  const t = norm(texto);
+  const hoje = new Date();
+  const addDias = (n) => {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + n);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  };
+
+  if (/\bdepois de amanha\b/.test(t)) return { iso: addDias(2), label: 'depois de amanhã' };
+  if (/\bamanha\b/.test(t)) return { iso: addDias(1), label: 'amanhã' };
+  if (/\bhoje\b/.test(t)) return { iso: addDias(0), label: 'hoje' };
+
+  const dias = [
+    { re: /\bdomingo\b/, dow: 0, label: 'domingo' },
+    { re: /\bsegunda(?:-feira)?\b/, dow: 1, label: 'segunda-feira' },
+    { re: /\bterca(?:-feira)?\b/, dow: 2, label: 'terça-feira' },
+    { re: /\bquarta(?:-feira)?\b/, dow: 3, label: 'quarta-feira' },
+    { re: /\bquinta(?:-feira)?\b/, dow: 4, label: 'quinta-feira' },
+    { re: /\bsexta(?:-feira)?\b/, dow: 5, label: 'sexta-feira' },
+    { re: /\bsabado\b/, dow: 6, label: 'sábado' },
+  ];
+  for (const d of dias) {
+    if (d.re.test(t)) {
+      let delta = (d.dow - hoje.getDay() + 7) % 7;
+      if (delta === 0) delta = 7; // "próxima" ocorrência
+      return { iso: addDias(delta), label: d.label };
+    }
+  }
+  return null;
+}
+
+/* ---------------- Interface do assistente ---------------- */
+
+let assistAberto = false;
+
+function assistAbrir() {
+  const painel = document.getElementById('assist-panel');
+  if (!painel || assistAberto) return;
+  assistAberto = true;
+  painel.classList.remove('hidden');
+  document.getElementById('assist-badge')?.classList.add('hidden');
+  setTimeout(() => document.getElementById('assist-input')?.focus({ preventScroll: true }), 80);
+}
+
+function assistFechar() {
+  const painel = document.getElementById('assist-panel');
+  if (!painel || !assistAberto) return;
+  assistAberto = false;
+  painel.classList.add('hidden');
+}
+
+function assistAlternar() {
+  if (assistAberto) assistFechar(); else assistAbrir();
+}
+
+/* Adiciona uma bolha de mensagem ao painel. */
+function assistMensagem(texto, autor = 'bot', extraHTML = '') {
+  const box = document.getElementById('assist-mensagens');
+  if (!box) return null;
+  const wrap = document.createElement('div');
+  wrap.className = `assist-msg flex ${autor === 'user' ? 'justify-end' : 'justify-start'}`;
+  const bolha = document.createElement('div');
+  bolha.className = `assist-bolha ${autor === 'user' ? 'assist-bolha-user' : 'assist-bolha-bot'}`;
+  bolha.innerHTML = `${esc(texto)}${extraHTML}`;
+  wrap.appendChild(bolha);
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+
+/* Indicador "a escrever…". */
+function assistATyping() {
+  const box = document.getElementById('assist-mensagens');
+  if (!box) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'assist-msg flex justify-start';
+  wrap.innerHTML = `<div class="assist-bolha assist-bolha-bot assist-typing"><span></span><span></span><span></span></div>`;
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+
+/* Renderiza as sugestões rápidas. */
+function assistRenderSugestoes() {
+  const box = document.getElementById('assist-sugestoes');
+  if (!box) return;
+  box.innerHTML = ASSIST_SUGESTOES
+    .map((s) => `<button type="button" class="assist-sugestao rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-brand-50 hover:text-brand-700 active:scale-95">${esc(s)}</button>`)
+    .join('');
+  box.querySelectorAll('.assist-sugestao').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('assist-input');
+      assistProcessar(btn.textContent);
+      if (input) input.value = '';
+    });
+  });
+}
+
+/* Executa a pesquisa para um par origem/destino e responde no chat. */
+function assistExecutarPesquisa(origem, destino, dataInfo) {
+  if (norm(origem) === norm(destino)) {
+    assistMensagem('A origem e o destino parecem ser a mesma paragem. Indica duas paragens diferentes.');
+    return;
+  }
+
+  // Preenche os inputs e dispara a pesquisa.
+  document.getElementById('origem').value = origem;
+  document.getElementById('destino').value = destino;
+  if (dataInfo) {
+    const dataInput = document.getElementById('data');
+    dataInput.value = dataInfo.iso;
+    atualizarInfoData();
+  }
+  mudarAba('pesquisa');
+  runSearch();
+
+  // Conta os resultados efetivamente apresentados.
+  const n = document.querySelectorAll('#results .viagem-toggle').length;
+  const quando = dataInfo ? ` ${dataInfo.label}` : '';
+
+  if (n === 0) {
+    assistMensagem(
+      `Não encontrei viagens entre ${origem} e ${destino}${quando}. Tenta outra data ou verifica as paragens.`
+    );
+    return;
+  }
+
+  const primeira = document.querySelector('#results .viagem-hora-partida')?.textContent?.trim();
+  const hora = primeira ? ` A primeira partida é às ${primeira}.` : '';
+  assistMensagem(
+    `Encontrei ${n} ${n === 1 ? 'viagem' : 'viagens'} entre ${origem} e ${destino}${quando}.${hora}`,
+    'bot',
+    `<div class="mt-2"><button type="button" class="assist-ver-resultados rounded-full bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95">Ver resultados</button></div>`
+  );
+
+  const botoes = document.querySelectorAll('#assist-mensagens .assist-ver-resultados');
+  botoes[botoes.length - 1]?.addEventListener('click', () => {
+    mudarAba('pesquisa');
+    assistFechar();
+    document.getElementById('results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/* Pergunta de confirmação por aproximação: "Refere-se a X?" com Sim/Não. */
+function assistConfirmarSugestao(sugestao, contexto) {
+  const { paragem, termo, campo } = sugestao;
+  const rotulo = campo === 'origem' ? 'origem' : 'destino';
+  assistMensagem(
+    `Não percebi perfeitamente. Refere-se a ${paragem}?`,
+    'bot',
+    `<div class="mt-2 flex gap-2">
+       <button type="button" class="assist-sim rounded-full bg-brand-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95">Sim</button>
+       <button type="button" class="assist-nao rounded-full bg-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-300 active:scale-95">Não</button>
+     </div>`
+  );
+
+  const bolhas = document.querySelectorAll('#assist-mensagens .assist-bolha');
+  const ultima = bolhas[bolhas.length - 1];
+  const btnSim = ultima?.querySelector('.assist-sim');
+  const btnNao = ultima?.querySelector('.assist-nao');
+
+  btnSim?.addEventListener('click', () => {
+    btnSim.disabled = true;
+    btnNao.disabled = true;
+    assistMensagem(`Certo, ${rotulo}: ${paragem}.`, 'user');
+
+    // Completa o par com o que já existia no contexto.
+    let origem = contexto.origem;
+    let destino = contexto.destino;
+    if (campo === 'origem') origem = paragem; else destino = paragem;
+
+    if (origem && destino) {
+      assistExecutarPesquisa(origem, destino, contexto.dataInfo);
+    } else {
+      const falta = !origem ? 'origem' : 'destino';
+      assistMensagem(
+        `Guardei ${paragem} como ${rotulo}. Falta indicar a ${falta} — escreve, por exemplo: "${origem || paragem} para ${destino || 'Destino'}".`
+      );
+    }
+  });
+
+  btnNao?.addEventListener('click', () => {
+    btnSim.disabled = true;
+    btnNao.disabled = true;
+    assistMensagem(
+      `Sem problema. Tenta escrever de novo com mais detalhe ou usa o botão ☰ junto ao campo para escolher da lista alfabética de paragens.`
+    );
+  });
+}
+
+/* Processa a mensagem do utilizador e responde. */
+function assistProcessar(texto) {
+  const msg = String(texto || '').trim();
+  if (!msg) return;
+
+  assistMensagem(msg, 'user');
+  const typing = assistATyping();
+
+  setTimeout(() => {
+    typing?.remove();
+
+    const { origem, destino, sugestoes } = assistInterpretar(msg);
+    const dataInfo = assistInterpretarData(msg);
+
+    // Caso 1: ambas as paragens identificadas com confiança.
+    if (origem && destino) {
+      assistExecutarPesquisa(origem, destino, dataInfo);
+      return;
+    }
+
+    // Caso 2: há sugestões por aproximação (para um ou ambos os lados).
+    if (sugestoes && sugestoes.length) {
+      const s = sugestoes[0];
+      assistConfirmarSugestao(s, { origem, destino, dataInfo });
+      return;
+    }
+
+    // Caso 3: nada identificado.
+    const parcial = origem
+      ? ` Identifiquei a origem "${origem}", mas não o destino.`
+      : (destino ? ` Identifiquei o destino "${destino}", mas não a origem.` : '');
+    assistMensagem(
+      `Não consegui identificar as paragens.${parcial} Experimenta escrever no formato: Origem para Destino.`
+    );
+  }, 420);
+}
+
+/* Liga os eventos do assistente. */
+function ligarAssistente() {
+  const btn = document.getElementById('assist-btn');
+  const fechar = document.getElementById('assist-fechar');
+  const form = document.getElementById('assist-form');
+  const input = document.getElementById('assist-input');
+  if (!btn || !form) return;
+
+  btn.addEventListener('click', assistAlternar);
+  fechar?.addEventListener('click', assistFechar);
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const texto = input.value;
+    input.value = '';
+    input.style.height = 'auto';
+    assistProcessar(texto);
+  });
+
+  // Enter envia; Shift+Enter faz nova linha.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  // Auto-cresce o textarea.
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 112) + 'px';
+  });
+
+  // Escape fecha o painel.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && assistAberto) assistFechar();
+  });
+
+  // Mensagem de boas-vindas + sugestões.
+  assistMensagem(ASSIST_SAUDACAO);
+  assistRenderSugestoes();
+}
+
 /* ---------------- Inicialização ---------------- */
 
 function bindEvents() {
@@ -1187,6 +1777,8 @@ async function init() {
   mudarAba('pesquisa');
   bindEvents();
   ligarSeletorParagens();
+  ligarAssistente();
+  ligarReporte();
 
   try {
     await loadData();

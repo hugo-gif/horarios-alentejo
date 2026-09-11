@@ -85,6 +85,14 @@
         </svg>
         Voltar à app
       </a>
+      <button type="button" id="btn-mensagens"
+              class="relative flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+        </svg>
+        Mensagens
+        <span id="mensagens-badge" class="hidden absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-slate-900">0</span>
+      </button>
     </div>
   </header>
 
@@ -204,6 +212,29 @@
 
   <datalist id="stops-list"></datalist>
 
-  <script src="admin.js?v=2.0"></script>
+  <!-- ============ MODAL: MENSAGENS & REPORTES ============ -->
+  <div id="mensagens-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="mensagens-titulo">
+    <div id="mensagens-overlay" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-x-0 bottom-0 mx-auto flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:inset-0 sm:my-auto sm:h-[80vh] sm:rounded-3xl">
+      <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></svg>
+          </span>
+          <div>
+            <h2 id="mensagens-titulo" class="text-base font-bold text-slate-900">Mensagens &amp; Reportes</h2>
+            <p id="mensagens-resumo" class="text-[11px] text-slate-500">—</p>
+          </div>
+        </div>
+        <button type="button" id="mensagens-fechar" aria-label="Fechar"
+                class="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div id="mensagens-lista" class="flex-1 overflow-y-auto overscroll-contain bg-slate-50 px-4 py-4"></div>
+    </div>
+  </div>
+
+  <script src="admin.js?v=2.1"></script>
 </body>
 </html>

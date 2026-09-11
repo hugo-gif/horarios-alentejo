@@ -640,6 +640,151 @@ function restaurarFabrica() {
   setStatus('Dados de fábrica restaurados.');
 }
 
+/* ---------------- Mensagens & Reportes (localStorage) ---------------- */
+
+const REPORTES_KEY = 'ra_reportes_erros';
+
+function carregarReportes() {
+  try {
+    const raw = localStorage.getItem(REPORTES_KEY);
+    const lista = raw ? JSON.parse(raw) : [];
+    return Array.isArray(lista) ? lista : [];
+  } catch (err) {
+    console.warn('Reportes ilegíveis:', err);
+    return [];
+  }
+}
+
+function gravarReportes(lista) {
+  try {
+    localStorage.setItem(REPORTES_KEY, JSON.stringify(lista));
+  } catch (err) {
+    console.warn('Não foi possível gravar reportes:', err);
+  }
+}
+
+function atualizarBadgeMensagens() {
+  const badge = document.getElementById('mensagens-badge');
+  if (!badge) return;
+  const naoLidas = carregarReportes().filter((r) => !r.lida).length;
+  badge.textContent = String(naoLidas);
+  badge.classList.toggle('hidden', naoLidas === 0);
+}
+
+function formatarDataReporte(iso) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso || '—';
+    return d.toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso || '—';
+  }
+}
+
+function renderMensagens() {
+  const box = document.getElementById('mensagens-lista');
+  const resumo = document.getElementById('mensagens-resumo');
+  if (!box) return;
+
+  const lista = carregarReportes().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const naoLidas = lista.filter((r) => !r.lida).length;
+  if (resumo) {
+    resumo.textContent = lista.length
+      ? `${lista.length} reporte${lista.length === 1 ? '' : 's'} · ${naoLidas} não lida${naoLidas === 1 ? '' : 's'}`
+      : 'Sem reportes';
+  }
+
+  if (!lista.length) {
+    box.innerHTML = `
+      <div class="rounded-2xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-slate-200/70">
+        <p class="text-sm font-semibold text-slate-500">Ainda não há reportes submetidos.</p>
+        <p class="mt-1 text-xs text-slate-400">Os reportes enviados na app aparecem aqui.</p>
+      </div>`;
+    return;
+  }
+
+  box.innerHTML = lista.map((r) => `
+    <article class="mb-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ${r.lida ? 'ring-slate-200/70' : 'ring-brand-300'}">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="truncate text-sm font-bold text-slate-900">${esc(r.assunto || '(sem assunto)')}</h3>
+            ${r.lida
+              ? '<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Lida</span>'
+              : '<span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">Nova</span>'}
+          </div>
+          <p class="mt-0.5 text-[11px] font-medium text-slate-400">${esc(formatarDataReporte(r.data))} · ${esc(r.email || '—')}</p>
+        </div>
+      </div>
+      <p class="mt-2 whitespace-pre-wrap break-words text-sm text-slate-700">${esc(r.mensagem || '')}</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" data-reporte-lida="${esc(r.id)}"
+                class="rounded-full px-3 py-1.5 text-xs font-bold transition active:scale-95 ${r.lida ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-brand-600 text-white hover:bg-brand-700'}">
+          ${r.lida ? 'Marcar como não lida' : 'Marcar como lida'}
+        </button>
+        <button type="button" data-reporte-eliminar="${esc(r.id)}"
+                class="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 ring-1 ring-rose-200 transition hover:bg-rose-100 active:scale-95">
+          Eliminar
+        </button>
+      </div>
+    </article>`).join('');
+
+  box.querySelectorAll('[data-reporte-lida]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-reporte-lida');
+      const lista2 = carregarReportes();
+      const item = lista2.find((r) => r.id === id);
+      if (item) { item.lida = !item.lida; gravarReportes(lista2); }
+      renderMensagens();
+      atualizarBadgeMensagens();
+    });
+  });
+
+  box.querySelectorAll('[data-reporte-eliminar]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-reporte-eliminar');
+      const lista2 = carregarReportes().filter((r) => r.id !== id);
+      gravarReportes(lista2);
+      renderMensagens();
+      atualizarBadgeMensagens();
+    });
+  });
+}
+
+function abrirMensagens() {
+  const modal = document.getElementById('mensagens-modal');
+  if (!modal) return;
+  renderMensagens();
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function fecharMensagens() {
+  const modal = document.getElementById('mensagens-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function ligarMensagens() {
+  const btn = document.getElementById('btn-mensagens');
+  const fechar = document.getElementById('mensagens-fechar');
+  const overlay = document.getElementById('mensagens-overlay');
+  if (!btn) return;
+
+  btn.addEventListener('click', abrirMensagens);
+  fechar?.addEventListener('click', fecharMensagens);
+  overlay?.addEventListener('click', fecharMensagens);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('mensagens-modal')?.classList.contains('hidden')) {
+      fecharMensagens();
+    }
+  });
+
+  atualizarBadgeMensagens();
+}
+
 /* ---------------- Inicialização ---------------- */
 
 function bindEvents() {
@@ -657,6 +802,8 @@ function bindEvents() {
 
   const btnRes = document.getElementById('btn-restaurar');
   if (btnRes) btnRes.addEventListener('click', restaurarFabrica);
+
+  ligarMensagens();
 }
 
 async function init() {
