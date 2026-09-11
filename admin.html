@@ -89,8 +89,117 @@
   </header>
 
   <!-- ============ CONTEÚDO ============ -->
-  <main class="mx-auto max-w-3xl px-4 pb-24 pt-5">
-    <section id="gestao" class="mt-1"></section>
+  <main class="mx-auto max-w-3xl space-y-4 px-4 pb-24 pt-5">
+
+    <!-- Estado / avisos -->
+    <p id="admin-status"
+       class="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/70">
+      A carregar horários…
+    </p>
+
+    <!-- ============ AÇÕES RÁPIDAS ============ -->
+    <section class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
+      <h2 class="mb-3 text-sm font-bold text-slate-900">Ações rápidas</h2>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button type="button" id="btn-exportar"
+                class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 active:scale-[.99]">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Descarregar horarios.json atualizado
+        </button>
+        <button type="button" id="btn-restaurar"
+                class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-rose-600 ring-1 ring-rose-200 transition hover:bg-rose-50 active:scale-[.99]">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          Restaurar dados de fábrica
+        </button>
+      </div>
+      <p id="admin-resumo" class="mt-2 text-[11px] text-slate-400">—</p>
+    </section>
+
+    <!-- ============ ADICIONAR VIAGEM MANUAL ============ -->
+    <section class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
+      <h2 class="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-white">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+        Adicionar viagem manual
+      </h2>
+
+      <form id="form-manual" class="space-y-3" autocomplete="off" novalidate>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label for="m-linha" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Linha / Nome</label>
+            <input id="m-linha" type="text" placeholder="Ex.: LINHA 5"
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+          <div>
+            <label for="m-operador" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Operador</label>
+            <input id="m-operador" type="text" placeholder="Ex.: Rodoviária do Alentejo"
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label for="m-sentido" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sentido</label>
+            <input id="m-sentido" type="text" placeholder="Ex.: Beja → Évora"
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+          <div>
+            <label for="m-dias" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de serviço</label>
+            <select id="m-dias"
+                    class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15">
+              <option value="dias_uteis">Dias úteis</option>
+              <option value="todos_os_dias">Todos os dias</option>
+              <option value="segunda_a_sexta">Segunda a sexta</option>
+              <option value="sabado">Sábado</option>
+              <option value="domingo">Domingo</option>
+              <option value="quarta_feira">Quarta-feira</option>
+              <option value="quinta_feira">Quinta-feira</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div class="mb-1.5 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Paragens e horas</span>
+            <button type="button" id="btn-add-paragem"
+                    class="flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 transition hover:bg-brand-100">
+              <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar paragem
+            </button>
+          </div>
+          <div id="m-paragens" class="space-y-2"></div>
+        </div>
+
+        <p id="m-erro" class="hidden rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"></p>
+
+        <button type="submit"
+                class="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 active:scale-[.99] focus:outline-none focus:ring-4 focus:ring-brand-600/25">
+          Guardar viagem manual
+        </button>
+      </form>
+    </section>
+
+    <!-- ============ GESTÃO DE VIAGENS EXISTENTES ============ -->
+    <section class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-sm font-bold text-slate-900">Gestão de viagens existentes</h2>
+        <input id="gestao-filtro" type="search" placeholder="Pesquisar…"
+               class="w-44 rounded-full border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+      </div>
+      <div id="gestao-lista">
+        <p class="px-1 py-6 text-center text-sm font-semibold text-slate-400">A carregar viagens…</p>
+      </div>
+    </section>
+
+    <!-- ============ ALTERAÇÕES REGISTADAS ============ -->
+    <section class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
+      <h2 class="mb-3 text-sm font-bold text-slate-900">Alterações registadas</h2>
+      <div id="alteracoes-lista">
+        <p class="px-1 py-6 text-center text-sm font-semibold text-slate-400">Sem alterações.</p>
+      </div>
+    </section>
+
   </main>
 
   <datalist id="stops-list"></datalist>

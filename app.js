@@ -728,6 +728,13 @@ function manuaisParaTrips() {
   return trips;
 }
 
+/* Reconstrói a lista de viagens (oficiais não ocultadas + manuais). */
+function rebuildTrips() {
+  buildTrips();
+  state.trips = state.trips.filter((t) => !viagensOcultas.has(chaveFavorito(t)));
+  state.trips = state.trips.concat(manuaisParaTrips());
+}
+
 /* ---------------- Vista: Guardados ---------------- */
 
 /* Cartão de uma viagem guardada, com acesso rápido. */
