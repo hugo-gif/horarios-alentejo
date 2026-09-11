@@ -170,6 +170,22 @@ function populateDatalist() {
 
 let seletorCampo = null; // 'origem' | 'destino'
 
+/*
+ * Bloqueio de scroll seguro para iOS.
+ * Em vez de mexer em `body.style.overflow` (que congela o Safari iOS),
+ * aplicamos uma classe ao <html> que apenas impede o scroll de fundo
+ * enquanto um modal está aberto. Nunca usamos position:fixed no body.
+ */
+function bloquearScroll() {
+  document.documentElement.classList.add('modal-aberto');
+}
+function desbloquearScroll() {
+  document.documentElement.classList.remove('modal-aberto');
+  // Salvaguarda: limpa qualquer overflow preso no body (estados antigos).
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+}
+
 /* Abre o modal do seletor de paragens para o campo indicado. */
 function abrirSeletorParagens(campo) {
   seletorCampo = campo;
@@ -182,7 +198,7 @@ function abrirSeletorParagens(campo) {
   renderListaParagens('');
 
   modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  bloquearScroll();
   // Foco automático na barra de pesquisa (após o modal ficar visível).
   setTimeout(() => {
     pesquisa.focus({ preventScroll: true });
@@ -194,7 +210,7 @@ function fecharSeletorParagens() {
   const modal = document.getElementById('seletor-paragens');
   if (modal.classList.contains('hidden')) return;
   modal.classList.add('hidden');
-  document.body.style.overflow = '';
+  desbloquearScroll();
   seletorCampo = null;
 }
 
@@ -1152,7 +1168,7 @@ function abrirReporte() {
   const modal = document.getElementById('reporte-modal');
   if (!modal) return;
   modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  bloquearScroll();
   setTimeout(() => document.getElementById('rep-email')?.focus({ preventScroll: true }), 80);
 }
 
@@ -1160,7 +1176,7 @@ function fecharReporte() {
   const modal = document.getElementById('reporte-modal');
   if (!modal) return;
   modal.classList.add('hidden');
-  document.body.style.overflow = '';
+  desbloquearScroll();
 }
 
 function submeterReporte(e) {
@@ -1872,6 +1888,12 @@ function runSearch() {
 }
 
 async function init() {
+  // Salvaguarda iOS: limpa qualquer bloqueio de scroll preso de uma sessão
+  // anterior (overflow/position no body ou classe modal-aberto no html).
+  document.documentElement.classList.remove('modal-aberto');
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+
   const dataInput = document.getElementById('data');
   dataInput.value = hojeISO();
   atualizarInfoData();

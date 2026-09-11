@@ -43,8 +43,56 @@
 
   <style>
     :root { color-scheme: light; }
+
+    /* ===== Correção de emergência iOS: desbloquear scroll e toques =====
+       Garante que html/body nunca ficam presos (sem position:fixed nem
+       overflow:hidden herdados de estados anteriores). */
+    html, body {
+      overflow-x: hidden;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      height: auto !important;
+      min-height: 100%;
+      position: static !important;
+    }
     html { -webkit-text-size-adjust: 100%; }
-    body { -webkit-tap-highlight-color: transparent; }
+
+    /* Realce de toque transparente em TODOS os elementos. */
+    * { -webkit-tap-highlight-color: transparent; }
+    button, a, input, select, textarea, [role="button"] {
+      touch-action: manipulation;
+    }
+
+    /* ===== Correções iOS/Safari =====
+       Elimina o atraso de 300ms e o realce cinzento ao tocar. */
+    button, a, [role="button"], input, select, textarea, label,
+    .fav-btn, .viagem-toggle, .paragem-opcao, .lista-btn, .mapa-link {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    /* Elementos interativos mostram sempre o cursor de mão. */
+    button, a, [role="button"], .fav-btn, .viagem-toggle,
+    .paragem-opcao, .lista-btn, .mapa-link, summary {
+      cursor: pointer;
+    }
+    /* Botões desativados não devem parecer clicáveis. */
+    button:disabled, [aria-disabled="true"] { cursor: default; }
+
+    /* ===== Camadas flutuantes: nunca bloquear toques quando fechadas =====
+       Os contentores flutuantes (chat, info, modais) usam a classe .hidden
+       (display:none). Reforçamos para garantir que, quando ocultos, não
+       criam uma "caixa invisível" que intercepta toques. */
+    .hidden { display: none !important; }
+    #assist-panel:not(.hidden),
+    #reporte-modal:not(.hidden),
+    #seletor-paragens:not(.hidden) { pointer-events: auto; }
+    #assist-panel.hidden,
+    #reporte-modal.hidden,
+    #seletor-paragens.hidden { pointer-events: none !important; }
+
+    /* Bloqueio de scroll de fundo enquanto um modal está aberto.
+       Aplicado ao <html> (nunca ao body com position:fixed, que congela o iOS). */
+    html.modal-aberto { overflow: hidden; }
 
     /* Viagem já partida (só quando a data é hoje).
        Mantém contraste pleno — apenas um leve tom de fundo para distinguir. */
@@ -114,6 +162,11 @@
     .assist-typing span:nth-child(2) { animation-delay: .2s; }
     .assist-typing span:nth-child(3) { animation-delay: .4s; }
     @keyframes assist-blink { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+
+    /* Painéis e modais: toques imediatos (sem atraso de 300ms no Safari iOS). */
+    #assist-panel, #reporte-modal, #seletor-paragens { touch-action: manipulation; }
+    /* Botões flutuantes: garantir que recebem o toque por cima do conteúdo. */
+    #assist-btn, #info-btn { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
@@ -370,7 +423,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
 
