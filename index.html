@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#E65100" />
+  <title>Horários do Alentejo</title>
+  <meta name="description" content="Consulta de horários de autocarros do Alentejo — pesquisa por origem e destino." />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            /* Laranja vivo — identidade Rodoviária do Alentejo */
+            brand: {
+              50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74',
+              400: '#fb923c', 500: '#f97316', 600: '#E65100', 700: '#c2410c',
+              800: '#9a3412', 900: '#7c2d12',
+            },
+          },
+          keyframes: {
+            'fade-up': {
+              '0%': { opacity: '0', transform: 'translateY(8px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+          },
+          animation: {
+            'fade-up': 'fade-up .28s ease-out both',
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root { color-scheme: light; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { -webkit-tap-highlight-color: transparent; }
+
+    /* Viagem já partida (só quando a data é hoje) */
+    .viagem-passada { opacity: .5; filter: saturate(.7); }
+    .viagem-passada:hover { opacity: .85; }
+
+    /* Próxima partida */
+    .viagem-proxima {
+      box-shadow: 0 0 0 2px #E65100, 0 14px 34px -16px rgba(230, 81, 0, .6);
+    }
+
+    /* Linha vertical da timeline */
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 1.5rem;
+      top: .5rem;
+      bottom: .5rem;
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, #e2e8f0 6%, #e2e8f0 94%, transparent);
+    }
+
+    /* Estrela de favorito */
+    .fav-btn svg { transition: transform .18s ease, color .18s ease; }
+    .fav-btn:active svg { transform: scale(.82); }
+    .fav-btn.is-fav svg { color: #E65100; fill: #E65100; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+  <header class="sticky top-0 z-30 bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-lg shadow-brand-900/20">
+    <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3.5">
+      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11" />
+          <path d="M4 11h16" />
+          <circle cx="7.5" cy="17.5" r="1.5" />
+          <circle cx="16.5" cy="17.5" r="1.5" />
+          <path d="M6 19.5h12" />
+        </svg>
+      </div>
+      <div class="min-w-0 flex-1">
+        <h1 class="truncate text-lg font-extrabold leading-tight tracking-tight">Horários do Alentejo</h1>
+        <p class="truncate text-xs text-brand-100/90">Autocarros regionais · origem e destino</p>
+      </div>
+    </div>
+
+    <!-- Abas: Pesquisa / Guardados -->
+    <nav class="mx-auto max-w-3xl px-4" aria-label="Navegação principal">
+      <div class="flex gap-1" role="tablist">
+        <button type="button" id="tab-pesquisa" role="tab" aria-selected="true" aria-controls="view-pesquisa"
+                class="tab-btn relative flex items-center gap-1.5 rounded-t-xl px-4 py-2.5 text-sm font-bold transition">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          Pesquisa
+        </button>
+        <button type="button" id="tab-guardados" role="tab" aria-selected="false" aria-controls="view-guardados"
+                class="tab-btn relative flex items-center gap-1.5 rounded-t-xl px-4 py-2.5 text-sm font-bold transition">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" />
+          </svg>
+          Guardados
+          <span id="fav-count" class="hidden rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white">0</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="mx-auto max-w-3xl px-4 pb-24 pt-5">
+    <!-- ============ VISTA: PESQUISA ============ -->
+    <div id="view-pesquisa" role="tabpanel" aria-labelledby="tab-pesquisa">
+      <section class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
+      <form id="search-form" class="space-y-3" autocomplete="off" novalidate>
+        <div>
+          <label for="origem" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Origem</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-600" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            </span>
+            <input id="origem" type="text" list="stops-list" inputmode="search"
+                   placeholder="Ex.: Beja, Évora, Portalegre…"
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+        </div>
+
+        <div class="relative flex items-center justify-center">
+          <span class="absolute left-0 right-0 h-px bg-slate-100" aria-hidden="true"></span>
+          <button type="button" id="btn-swap" title="Inverter rota" aria-label="Inverter origem e destino"
+                  class="group relative z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-600 shadow ring-1 ring-slate-200 transition hover:bg-brand-50 active:scale-95">
+            <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-300 group-hover:rotate-180" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 3 4 7l4 4" />
+              <path d="M4 7h16" />
+              <path d="M16 21l4-4-4-4" />
+              <path d="M20 17H4" />
+            </svg>
+          </button>
+        </div>
+
+        <div>
+          <label for="destino" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Destino</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-900" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1v12Z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            </span>
+            <input id="destino" type="text" list="stops-list" inputmode="search"
+                   placeholder="Ex.: Estação Rodoviária, Vila de Frades…"
+                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+        </div>
+
+        <div>
+          <label for="data" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Data da viagem</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </span>
+            <input id="data" type="date"
+                     class="w-full rounded-2xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-3 text-base font-medium text-slate-900 outline-none transition focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+          </div>
+          <p id="data-info" class="mt-1.5 text-xs font-medium text-slate-500"></p>
+        </div>
+
+        <button type="submit"
+                  class="w-full rounded-2xl bg-brand-600 px-4 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 active:scale-[.99] focus:outline-none focus:ring-4 focus:ring-brand-600/25">
+            Procurar horários
+          </button>
+        </form>
+      </section>
+
+      <section id="results" class="mt-5"></section>
+    </div>
+
+    <!-- ============ VISTA: GUARDADOS ============ -->
+    <div id="view-guardados" role="tabpanel" aria-labelledby="tab-guardados" class="hidden">
+      <section id="favoritos" class="mt-1"></section>
+    </div>
+  </main>
+
+  <datalist id="stops-list"></datalist>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
