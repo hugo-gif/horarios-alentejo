@@ -17,6 +17,10 @@ const DATA_URL = 'horarios.json';
 const OCULTAS_KEY = 'ra_viagens_ocultas';
 const MANUAIS_KEY = 'ra_viagens_adicionadas';
 
+/* Email autorizado a aceder ao painel (bloqueio simples, sem OAuth). */
+const ADMIN_EMAIL = 'hugo.henrique.frade@gmail.com';
+const ADMIN_SESSAO_KEY = 'admin_autenticado';
+
 const state = {
   data: null,   // conteúdo de horarios.json
   stops: [],    // nomes únicos e válidos para o <datalist>
@@ -785,6 +789,56 @@ function ligarMensagens() {
   atualizarBadgeMensagens();
 }
 
+/* ---------------- Autenticação (bloqueio simples) ---------------- */
+
+/* Mostra o painel e esconde o ecrã de bloqueio. */
+function mostrarPainel() {
+  const login = document.getElementById('login-card');
+  const conteudo = document.getElementById('admin-content');
+  if (login) login.style.display = 'none';
+  if (conteudo) conteudo.style.display = '';
+}
+
+/* Mostra o ecrã de bloqueio e esconde o painel. */
+function mostrarLogin() {
+  const login = document.getElementById('login-card');
+  const conteudo = document.getElementById('admin-content');
+  if (login) login.style.display = '';
+  if (conteudo) conteudo.style.display = 'none';
+}
+
+/* Verifica se já existe sessão autenticada. */
+function verificarSessao() {
+  if (localStorage.getItem(ADMIN_SESSAO_KEY) === 'true') {
+    mostrarPainel();
+    return true;
+  }
+  mostrarLogin();
+  return false;
+}
+
+/* Processa a tentativa de entrada. */
+function tentarEntrar() {
+  const input = document.getElementById('login-email');
+  const erro = document.getElementById('login-erro');
+  const valor = String(input?.value || '').trim().toLowerCase();
+
+  if (valor === ADMIN_EMAIL) {
+    localStorage.setItem(ADMIN_SESSAO_KEY, 'true');
+    if (erro) erro.classList.add('hidden');
+    mostrarPainel();
+  } else {
+    if (erro) erro.classList.remove('hidden');
+    input?.focus();
+  }
+}
+
+/* Termina a sessão e recarrega a página. */
+function sair() {
+  localStorage.removeItem(ADMIN_SESSAO_KEY);
+  location.reload();
+}
+
 /* ---------------- Inicialização ---------------- */
 
 function bindEvents() {
@@ -807,6 +861,16 @@ function bindEvents() {
 }
 
 async function init() {
+  // Liga sempre os eventos de login/sair (necessários antes da autenticação).
+  const loginForm = document.getElementById('login-form');
+  if (loginForm) loginForm.addEventListener('submit', (e) => { e.preventDefault(); tentarEntrar(); });
+
+  const btnSair = document.getElementById('btn-sair');
+  if (btnSair) btnSair.addEventListener('click', sair);
+
+  // Bloqueio de acesso: sem sessão válida, mostra o login e não carrega o painel.
+  if (!verificarSessao()) return;
+
   // Overrides do localStorage (independentes do fetch).
   carregarOcultas();
   carregarManuais();
