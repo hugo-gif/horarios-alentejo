@@ -729,11 +729,21 @@ function ligarAcordeoes() {
 const FAV_KEY = 'ra_favoritos_v1';
 let favoritos = new Map(); // chave -> { origem, destino, partida, chegada, linha, operador }
 
-/* Chave única de uma viagem guardada. */
+/* Chave única de uma viagem guardada.
+   IMPORTANTE: tem de ser CANÓNICA (idempotente) — a mesma viagem tem de
+   produzir exatamente a mesma chave quer venha de um objeto com arrays
+   (`linhas`/`operadores`, ao guardar) quer de um objeto já gravado com
+   strings (`linha`/`operador`, ao carregar do localStorage).
+   Sem isto, a chave mudava entre gravar e recarregar ("," vs ", ") e a
+   remoção falhava silenciosamente (o cartão desaparecia mas o Map e o
+   localStorage ficavam intactos). */
 function chaveFavorito(t) {
   const linha = Array.isArray(t.linhas) ? t.linhas.join(',') : (t.linha || '');
   const operador = Array.isArray(t.operadores) ? t.operadores.join(',') : (t.operador || '');
-  return [norm(t.origem), norm(t.destino), t.partida, t.chegada, linha, operador].join('|');
+  // Normaliza o separador de listas para "," (sem espaço) em ambos os casos.
+  const linhaCanonica = String(linha).split(',').map((s) => s.trim()).filter(Boolean).join(',');
+  const operadorCanonico = String(operador).split(',').map((s) => s.trim()).filter(Boolean).join(',');
+  return [norm(t.origem), norm(t.destino), t.partida, t.chegada, linhaCanonica, operadorCanonico].join('|');
 }
 
 function carregarFavoritos() {
@@ -760,6 +770,33 @@ function gravarFavoritos() {
   atualizarContadorFavoritos();
 }
 
+/* Remove um favorito pela chave, de forma robusta.
+   Faz cast explícito para string e aceita a chave canónica OU qualquer
+   variante antiga (com/sem espaço no separador de listas), para nunca
+   deixar um cartão "fantasma" no localStorage. */
+function removerFavoritoPorChave(id) {
+  const idParaRemover = String(id);
+  let removido = false;
+
+  if (favoritos.has(idParaRemover)) {
+    favoritos.delete(idParaRemover);
+    removido = true;
+  } else {
+    // Fallback: compara chaves normalizadas (tolerante a separadores antigos).
+    const alvo = idParaRemover.replace(/,\s*/g, ',');
+    for (const chave of [...favoritos.keys()]) {
+      if (String(chave).replace(/,\s*/g, ',') === alvo) {
+        favoritos.delete(chave);
+        removido = true;
+      }
+    }
+  }
+
+  // Grava imediatamente e atualiza o contador no mesmo tick do clique.
+  gravarFavoritos();
+  return removido;
+}
+
 function atualizarContadorFavoritos() {
   const badge = document.getElementById('fav-count');
   if (!badge) return;
@@ -772,7 +809,8 @@ function atualizarContadorFavoritos() {
 function alternarFavorito(trip) {
   const key = chaveFavorito(trip);
   if (favoritos.has(key)) {
-    favoritos.delete(key);
+    removerFavoritoPorChave(key);
+    return false;
   } else {
     favoritos.set(key, {
       origem: trip.origem,
@@ -1096,9 +1134,9 @@ function ligarFavoritosGuardados() {
       // Bloqueia cliques adicionais no cartão durante a animação.
       cartao.classList.add('fav-remover');
 
-      // Atualiza o estado e o localStorage imediatamente.
-      favoritos.delete(chave);
-      gravarFavoritos();
+      // Atualiza o estado em memória, grava no localStorage e atualiza o
+      // contador IMEDIATAMENTE (antes de qualquer animação).
+      removerFavoritoPorChave(chave);
 
       // Se os resultados da pesquisa ainda estiverem montados em segundo
       // plano, atualiza já a estrela correspondente desse resultado.
