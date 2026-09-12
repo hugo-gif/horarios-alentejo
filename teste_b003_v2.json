@@ -1,0 +1,176 @@
+{
+  "fonte": "B003.pdf",
+  "layout": "espelhado",
+  "linha": "Linha 3 - ALFUNDÃO - FERREIRA DO ALENTEJO",
+  "vigencia": "01 DE NOVEMBRO DE 2025",
+  "direcoes": [
+    {
+      "sentido": "ida",
+      "nome": "Alfundão → Ferreira Alentejo",
+      "periodos": [
+        {
+          "periodo": "escolar",
+          "dias": "dias_uteis",
+          "paragens": [
+            {
+              "nome": "Alfundão",
+              "marcador": "P",
+              "horarios": [
+                "07:00",
+                "07:40",
+                "14:35",
+                "17:40"
+              ]
+            },
+            {
+              "nome": "Pero Guarda",
+              "marcador": null,
+              "horarios": [
+                "07:06",
+                "07:46",
+                "14:41",
+                "17:46"
+              ]
+            },
+            {
+              "nome": "Pero Guarda (Cruztº.)",
+              "marcador": null,
+              "horarios": [
+                "07:14",
+                "07:54",
+                "14:49",
+                "17:54"
+              ]
+            },
+            {
+              "nome": "Ferreira Alentejo",
+              "marcador": "C",
+              "horarios": [
+                "07:20",
+                "08:00",
+                "14:55",
+                "18:00"
+              ]
+            }
+          ]
+        },
+        {
+          "periodo": "nao_escolar",
+          "dias": "dias_uteis",
+          "paragens": [
+            {
+              "nome": "Alfundão",
+              "marcador": "P",
+              "horarios": [
+                "07:30"
+              ]
+            },
+            {
+              "nome": "Pero Guarda",
+              "marcador": null,
+              "horarios": [
+                "07:36"
+              ]
+            },
+            {
+              "nome": "Pero Guarda (Cruztº.)",
+              "marcador": null,
+              "horarios": [
+                "07:44"
+              ]
+            },
+            {
+              "nome": "Ferreira Alentejo",
+              "marcador": "C",
+              "horarios": [
+                "07:50"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sentido": "volta",
+      "nome": "Ferreira Alentejo → Alfundão",
+      "periodos": [
+        {
+          "periodo": "escolar",
+          "dias": "dias_uteis",
+          "paragens": [
+            {
+              "nome": "Ferreira Alentejo",
+              "marcador": "P",
+              "horarios": [
+                "14:05",
+                "17:10",
+                "18:10"
+              ]
+            },
+            {
+              "nome": "Pero Guarda (Cruztº.)",
+              "marcador": null,
+              "horarios": [
+                "-",
+                "-",
+                "18:16"
+              ]
+            },
+            {
+              "nome": "Pero Guarda",
+              "marcador": null,
+              "horarios": [
+                "-",
+                "-",
+                "18:24"
+              ]
+            },
+            {
+              "nome": "Alfundão",
+              "marcador": "C",
+              "horarios": [
+                "14:35",
+                "17:40",
+                "18:30"
+              ]
+            }
+          ]
+        },
+        {
+          "periodo": "nao_escolar",
+          "dias": "dias_uteis",
+          "paragens": [
+            {
+              "nome": "Ferreira Alentejo",
+              "marcador": "P",
+              "horarios": [
+                "18:10"
+              ]
+            },
+            {
+              "nome": "Pero Guarda (Cruztº.)",
+              "marcador": null,
+              "horarios": [
+                "18:16"
+              ]
+            },
+            {
+              "nome": "Pero Guarda",
+              "marcador": null,
+              "horarios": [
+                "18:24"
+              ]
+            },
+            {
+              "nome": "Alfundão",
+              "marcador": "C",
+              "horarios": [
+                "18:30"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

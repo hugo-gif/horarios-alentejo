@@ -123,52 +123,152 @@ function duracaoLabel(partida, chegada) {
   return `${m} min`;
 }
 
+/* Nome de dia (raiz) -> rótulo, e raiz -> índice getDay() (0=Dom … 6=Sáb). */
+const DIA_NOME = [
+  ['domingo', 'Domingo'],
+  ['segunda', 'Segunda'],
+  ['terca', 'Terça'],
+  ['quarta', 'Quarta'],
+  ['quinta', 'Quinta'],
+  ['sexta', 'Sexta'],
+  ['sabado', 'Sábado'],
+];
+const DIA_INDICE = [
+  ['domingo', 0],
+  ['segunda', 1],
+  ['terca', 2],
+  ['quarta', 3],
+  ['quinta', 4],
+  ['sexta', 5],
+  ['sabado', 6],
+];
+
 function tipoLabel(tipo) {
-  const map = {
+  if (!tipo) return '';
+  const fixos = {
     dias_uteis: 'Dias úteis',
     todos_os_dias: 'Todos os dias',
-    sabado: 'Sábado',
-    domingo: 'Domingo',
     segunda_a_sexta: 'Segunda a sexta',
     segunda_a_quarta: 'Segunda a quarta',
     quarta_feira_sexta_feira: 'Quarta a sexta',
-    quarta_feira: 'Quarta-feira',
-    quinta_feira: 'Quinta-feira',
-    segunda_feira_terca_feira_quarta_feira_sexta_feira: 'Seg./ter./qua./sex.',
-    segunda_feira_quarta_feira: 'Segunda e quarta',
   };
-  return map[tipo] || '';
+  if (fixos[tipo]) return fixos[tipo];
+  const dias = DIA_NOME.filter(([tok]) => tipo.includes(tok)).map(([, nome]) => nome);
+  return dias.length ? dias.join(' · ') : '';
+}
+
+/* Rótulo do período (escolar / não escolar / anual). */
+function periodoLabel(periodo) {
+  const map = {
+    escolar: 'Período escolar',
+    nao_escolar: 'Férias / não escolar',
+    anual: 'Todo o ano',
+  };
+  return map[periodo] || '';
 }
 
 /* ---------------- Dias de circulação ---------------- */
 
 /* Converte o tipo_servico num conjunto de dias da semana (0=Dom … 6=Sáb).
-   Devolve null quando o serviço circula todos os dias. */
+   Aceita chaves canónicas ('quinta_feira', 'segunda_feira_quarta_feira', …)
+   e as chaves legadas antigas. Devolve dias úteis quando desconhecido. */
 function diasDoTipo(tipo) {
   const TODOS = [0, 1, 2, 3, 4, 5, 6];
   const UTEIS = [1, 2, 3, 4, 5];
-  const map = {
-    todos_os_dias: TODOS,
-    dias_uteis: UTEIS,
-    segunda_a_sexta: UTEIS,
+  if (!tipo) return UTEIS;
+  if (tipo === 'todos_os_dias') return TODOS;
+  if (tipo === 'dias_uteis' || tipo === 'segunda_a_sexta') return UTEIS;
+
+  const legado = {
     segunda_a_quarta: [1, 2, 3],
-    segunda_feira_quarta_feira: [1, 3],
-    segunda_feira_terca_feira_quarta_feira_sexta_feira: [1, 2, 3, 5],
-    quarta_feira: [3],
     quarta_feira_sexta_feira: [3, 5],
-    quinta_feira: [4],
-    sabado: [6],
-    domingo: [0],
   };
-  if (tipo && map[tipo]) return map[tipo];
-  // Sem tipo definido: assume dias úteis (comportamento mais comum nos PDFs).
-  return UTEIS;
+  if (legado[tipo]) return legado[tipo];
+
+  const dias = DIA_INDICE.filter(([tok]) => tipo.includes(tok)).map(([, i]) => i);
+  return dias.length ? dias : UTEIS;
 }
 
 /* O serviço circula no dia da semana indicado? */
 function circulaNoDia(tipo, diaSemana) {
   const dias = diasDoTipo(tipo);
   return dias.includes(diaSemana);
+}
+
+/* ---------------- Calendário escolar (Portugal) ---------------- */
+
+/* Domingo de Páscoa de um ano — algoritmo de Meeus/Jones/Butcher (Computus). */
+function diaDePascoa(ano) {
+  const a = ano % 19;
+  const b = Math.floor(ano / 100);
+  const c = ano % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31); // 3=março, 4=abril
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(ano, mes - 1, dia);
+}
+
+/* Data (Date) -> "YYYY-MM-DD" (hora local). */
+function isoDeDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+/* `iso` dentro de [inicio, fim] (comparação lexicográfica de YYYY-MM-DD). */
+function entre(iso, inicio, fim) {
+  return iso >= inicio && iso <= fim;
+}
+
+/* `isPeriodoEscolar(iso)` — verdadeiro quando a data está em período letivo
+   (isto é, fora das interrupções/férias). O dia da semana é tratado à parte
+   por `circulaNoDia`, pelo que aqui não se consideram fins-de-semana.
+
+   Regras (aproximação do calendário escolar oficial):
+   - Férias de Verão: ~15/junho a 10/setembro;
+   - Férias de Natal: 17/dezembro a 2/janeiro;
+   - Férias de Carnaval: 2ª, 3ª e 4ª antes da Quarta-feira de Cinzas;
+   - Férias da Páscoa: 2ª-feira anterior à Páscoa até ao domingo seguinte. */
+function isPeriodoEscolar(iso) {
+  if (!iso) return true;
+  const ano = Number(iso.slice(0, 4));
+
+  if (entre(iso, `${ano}-06-15`, `${ano}-09-10`)) return false; // verão
+  if (entre(iso, `${ano}-12-17`, `${ano}-12-31`)) return false; // natal
+  if (entre(iso, `${ano}-01-01`, `${ano}-01-02`)) return false; // natal
+
+  const pascoa = diaDePascoa(ano);
+
+  const carnIni = new Date(pascoa);
+  carnIni.setDate(pascoa.getDate() - 48); // 2ª-feira de Carnaval
+  const carnFim = new Date(pascoa);
+  carnFim.setDate(pascoa.getDate() - 46); // 4ª-feira de Cinzas - 1
+  if (entre(iso, isoDeDate(carnIni), isoDeDate(carnFim))) return false;
+
+  const pasIni = new Date(pascoa);
+  pasIni.setDate(pascoa.getDate() - 6); // 2ª-feira anterior à Páscoa
+  const pasFim = new Date(pascoa);
+  pasFim.setDate(pascoa.getDate() + 7); // domingo seguinte à Páscoa
+  if (entre(iso, isoDeDate(pasIni), isoDeDate(pasFim))) return false;
+
+  return true;
+}
+
+/* O serviço deste período deve ser exibido para a data em causa? */
+function periodoAtivo(periodo, isEscolar) {
+  if (!periodo || periodo === 'anual') return true;
+  if (periodo === 'escolar') return isEscolar;
+  if (periodo === 'nao_escolar') return !isEscolar;
+  return true;
 }
 
 /* ---------------- Carregamento ---------------- */
@@ -407,6 +507,7 @@ function buildTrips() {
               linha: servico.linha || '—',
               sentido: sentido.nome || '',
               tipoServico: sentido.tipo_servico || null,
+              periodo: sentido.periodo || null,
               origem: pOrigem.nome,
               destino: pDestino.nome,
               origemNorm: norm(pOrigem.nome),
@@ -475,20 +576,22 @@ function minutosParaHora(min) {
 
 /* ---------------- Pesquisa ---------------- */
 
-function findTrips(origem, destino, diaSemana) {
+function findTrips(origem, destino, diaSemana, iso) {
   const oKey = norm(origem);
   const dKey = norm(destino);
+  const isEscolar = isPeriodoEscolar(iso);
 
   return state.trips.filter((t) =>
     t.origemNorm === oKey &&
     t.destinoNorm === dKey &&
-    circulaNoDia(t.tipoServico, diaSemana)
+    circulaNoDia(t.tipoServico, diaSemana) &&
+    periodoAtivo(t.periodo, isEscolar)
   );
 }
 
 /* ---------------- Consolidação ---------------- */
 
-/* Agrupa viagens com a mesma partida e chegada, juntando operadores/linhas. */
+/* Agrupa viagens com a mesma partida e chegada, juntando operadores/linhas/períodos. */
 function consolidar(trips) {
   const map = new Map();
 
@@ -502,6 +605,7 @@ function consolidar(trips) {
         operadores: new Set(),
         linhas: new Set(),
         tipos: new Set(),
+        periodos: new Set(),
         rota: t.rota, // rota completa do primeiro serviço do grupo
       });
     }
@@ -509,6 +613,7 @@ function consolidar(trips) {
     g.operadores.add(t.operador);
     g.linhas.add(t.linha);
     if (t.tipoServico) g.tipos.add(t.tipoServico);
+    if (t.periodo) g.periodos.add(t.periodo);
     // Prefere a rota mais detalhada (com mais paragens).
     if (t.rota && (!g.rota || t.rota.length > g.rota.length)) g.rota = t.rota;
   }
@@ -521,6 +626,7 @@ function consolidar(trips) {
       operadores: [...g.operadores],
       linhas: [...g.linhas],
       tipos: [...g.tipos],
+      periodos: [...g.periodos],
       rota: g.rota || [],
     }))
     .sort((a, b) => a.partidaMin - b.partidaMin);
@@ -591,6 +697,16 @@ function tripCard(trip, isNext, isPast, index) {
   const tipos = trip.tipos
     .map((t) => `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">${esc(tipoLabel(t))}</span>`)
     .join('');
+  const periodos = (trip.periodos || [])
+    .map((p) => {
+      const cls = p === 'escolar'
+        ? 'bg-emerald-100 text-emerald-700'
+        : p === 'nao_escolar'
+          ? 'bg-amber-100 text-amber-700'
+          : 'bg-slate-100 text-slate-600';
+      return `<span class="rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}">${esc(periodoLabel(p))}</span>`;
+    })
+    .join('');
 
   const rota = (trip.rota || []).map(rotaLinha).join('');
   const nParagens = (trip.rota || []).length;
@@ -617,6 +733,7 @@ function tripCard(trip, isNext, isPast, index) {
             ${linhas}
             ${operadores}
             ${tipos}
+            ${periodos}
           </div>
           <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
             <span class="inline-flex min-w-0 items-center gap-1">
@@ -980,6 +1097,7 @@ function manuaisParaTrips() {
           linha: v.linha || '—',
           sentido: v.sentido || '',
           tipoServico: v.tipoServico || null,
+          periodo: null,
           origem: pO.nome,
           destino: pD.nome,
           origemNorm: norm(pO.nome),
@@ -1214,11 +1332,11 @@ function atualizarInfoData() {
   if (!iso) { info.textContent = ''; return; }
   const dia = diaSemanaDaData(iso);
   const nome = NOMES_DIA[dia];
-  const fimSemana = dia === 0 || dia === 6;
-  info.textContent = fimSemana
-    ? `${nome} — apenas serviços de fim de semana`
-    : `${nome} — serviços de dias úteis`;
-  info.className = `mt-1.5 text-xs font-medium ${fimSemana ? 'text-slate-900' : 'text-brand-700'}`;
+  const escolar = isPeriodoEscolar(iso);
+  info.textContent = escolar
+    ? `${nome} — Período escolar`
+    : `${nome} — Férias / não escolar`;
+  info.className = `mt-1.5 text-xs font-medium ${escolar ? 'text-emerald-700' : 'text-amber-700'}`;
 }
 
 /* ---------------- Reportes de erros (localStorage) ---------------- */
@@ -1962,7 +2080,7 @@ function runSearch() {
   }
 
   const diaSemana = iso ? diaSemanaDaData(iso) : new Date().getDay();
-  const trips = findTrips(origem, destino, diaSemana);
+  const trips = findTrips(origem, destino, diaSemana, iso);
   renderResults(trips, origem, destino, diaSemana);
 }
 
