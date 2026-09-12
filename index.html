@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#E2231A" />
+  <meta name="theme-color" content="#E03A1E" />
   <title>Horários do Alentejo</title>
   <meta name="description" content="Consulta de horários de autocarros do Alentejo — pesquisa por origem e destino." />
 
@@ -16,11 +16,11 @@
             sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
           },
           colors: {
-            /* Vermelho Rodoviária — identidade da frota Rodoviária do Alentejo */
+            /* Vermelho-alaranjado Rodoviária — identidade da frota Rodoviária do Alentejo */
             brand: {
-              50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5',
-              400: '#f87171', 500: '#ef4444', 600: '#E2231A', 700: '#c11a12',
-              800: '#9c150e', 900: '#7f110b',
+              50: '#fff4ef', 100: '#ffe4d6', 200: '#ffc7ad', 300: '#ffa07a',
+              400: '#fb7a4a', 500: '#f25c2a', 600: '#E03A1E', 700: '#bd2c14',
+              800: '#96220f', 900: '#7a1c0c',
             },
           },
           keyframes: {
@@ -104,7 +104,7 @@
 
     /* Próxima partida */
     .viagem-proxima {
-      box-shadow: 0 0 0 2px #E2231A, 0 14px 34px -16px rgba(226, 35, 26, .6);
+      box-shadow: 0 0 0 2px #E03A1E, 0 14px 34px -16px rgba(224, 58, 30, .6);
     }
 
     /* Linha vertical da timeline */
@@ -121,7 +121,7 @@
     /* Estrela de favorito */
     .fav-btn svg { transition: color 0.3s ease, transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     .fav-btn:active svg { transform: scale(.82); }
-    .fav-btn.is-fav svg { color: #E2231A; fill: #E2231A; }
+    .fav-btn.is-fav svg { color: #E03A1E; fill: #E03A1E; }
 
     /* Micro-animação ao guardar/remover (giro + escala) */
     @keyframes fav-pop {
@@ -160,7 +160,7 @@
     .assist-msg { animation: fade-up .28s ease-out both; }
     .assist-bolha { max-width: 85%; border-radius: 1.25rem; padding: .6rem .85rem; font-size: .875rem; line-height: 1.35; }
     .assist-bolha-bot { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(15,23,42,.06); border-bottom-left-radius: .35rem; }
-    .assist-bolha-user { background: #E2231A; color: #fff; border-bottom-right-radius: .35rem; }
+    .assist-bolha-user { background: #E03A1E; color: #fff; border-bottom-right-radius: .35rem; }
     .assist-typing span { display: inline-block; width: 6px; height: 6px; margin: 0 1px; border-radius: 9999px; background: #94a3b8; animation: assist-blink 1.2s infinite ease-in-out both; }
     .assist-typing span:nth-child(2) { animation-delay: .2s; }
     .assist-typing span:nth-child(3) { animation-delay: .4s; }
