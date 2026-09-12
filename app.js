@@ -17,6 +17,12 @@
 
 const DATA_URL = './horarios.json';
 
+/* Splash screen: marca o instante de arranque para garantir um tempo
+   mínimo de exibição visual (evita um "flash" quando o carregamento
+   é muito rápido). Ajustar SPLASH_MIN_MS para testar (ex.: 1500 no final). */
+const splashInicio = performance.now();
+const SPLASH_MIN_MS = 3000;
+
 /* =============================================================
    Blindagem contra congelamentos no iOS (WebKit).
    - Um erro síncrono não tratado no arranque pode deixar a thread
@@ -2168,7 +2174,6 @@ async function init() {
   document.documentElement.classList.remove('modal-aberto');
   document.body.style.overflow = '';
   document.body.style.position = '';
-
   const dataInput = document.getElementById('data');
   dataInput.value = hojeISO();
   atualizarInfoData();
@@ -2202,6 +2207,31 @@ async function init() {
     console.error(err);
     setStatus('Erro ao carregar horarios.json — ' + err.message, true);
   }
+
+  fecharSplashScreen();
 }
+
+/* Fecha a splash screen com uma saída por wipe direcional (direita →
+   esquerda) via animação fadeOutWipe (clip-path + opacidade), garantindo um
+   mínimo de SPLASH_MIN_MS de exibição para não haver um "flash" abrupto.
+   O ecrã fica estático (sem translateX): o clip-path fecha da direita para a
+   esquerda enquanto a opacidade desvanece. */
+function fecharSplashScreen() {
+  const splash = document.getElementById('splash-screen');
+  if (!splash || splash.dataset.fechado === '1') return;
+  splash.dataset.fechado = '1';
+
+  const decorrido = performance.now() - splashInicio;
+  const restante = Math.max(0, SPLASH_MIN_MS - decorrido);
+
+  setTimeout(() => {
+    splash.classList.add('splash-saindo', 'pointer-events-none');
+    // Esconde por completo após o fim da animação fadeOutWipe (700ms).
+    setTimeout(() => splash.classList.add('hidden'), 750);
+  }, restante);
+}
+
+// Fallback de segurança: nunca deixar a app bloqueada se o init() falhar.
+setTimeout(fecharSplashScreen, 4000);
 
 document.addEventListener('DOMContentLoaded', init);

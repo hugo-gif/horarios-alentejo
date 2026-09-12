@@ -213,9 +213,53 @@
     .header-curvo {
       border-bottom-right-radius: clamp(64px, 22vw, 100px);
     }
+
+    /* ===== Splash screen (carregamento inicial) ===== */
+    /* Logótipo 100% estático: sem scale, pulse, breathe ou transform.
+       Fica completamente fixo (escala 1:1) do primeiro ao último segundo. */
+
+    /* ===== Saída por wipe direcional (direita → esquerda) =====
+       O ecrã nasce 100% visível, sólido e estático (sem máscaras nem opacidade
+       reduzida). A varredura só acontece quando a classe .splash-saindo é
+       adicionada, disparando a animação fadeOutWipe: o clip-path fecha da
+       direita para a esquerda enquanto a opacidade desvanece, revelando a
+       página por baixo sem bordas mecânicas. */
+    @keyframes fadeOutWipe {
+      0% {
+        opacity: 1;
+        clip-path: inset(0 0 0 0);
+      }
+      100% {
+        opacity: 0;
+        clip-path: inset(0 100% 0 0);
+      }
+    }
+    #splash-screen.splash-saindo {
+      animation: fadeOutWipe 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      pointer-events: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash-screen.splash-saindo { animation-duration: .001ms !important; }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+  <!-- Splash screen: esconde o carregamento inicial dos horários -->
+  <div id="splash-screen" class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-gradient-to-br from-brand-600 to-brand-800 text-white">
+    <!-- Bloco central único: logótipo nítido e estático sobre o fundo vermelho -->
+    <div class="relative flex items-center justify-center">
+      <div class="splash-logo relative z-20 pointer-events-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 ring-1 ring-white/25">
+        <svg viewBox="0 0 24 24" class="h-11 w-11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11" />
+          <path d="M4 11h16" />
+          <circle cx="7.5" cy="17.5" r="1.5" />
+          <circle cx="16.5" cy="17.5" r="1.5" />
+          <path d="M6 19.5h12" />
+        </svg>
+      </div>
+    </div>
+  </div>
+
   <header class="header-curvo sticky top-0 z-30 bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-lg shadow-brand-900/20">
     <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3.5">
       <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
@@ -503,7 +547,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
 
