@@ -152,6 +152,41 @@
       100% { opacity: 0; max-height: 0; margin: 0; padding: 0; overflow: hidden; }
     }
 
+    /* ===== Botão "Ver PDF Oficial" (surge ao expandir as paragens) ===== */
+    .pdf-btn {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 2.25rem;
+      width: 2.25rem;
+      border-radius: 9999px;
+      background: #ffffff;
+      color: #dc2626;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .16), 0 0 0 1px #e2e8f0;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .45s cubic-bezier(.22, .61, .36, 1), opacity .3s ease,
+                  background-color .2s ease, color .2s ease;
+    }
+    .pdf-btn:hover { background: #fef2f2; color: #b91c1c; }
+    .pdf-btn svg { width: 1.25rem; height: 1.25rem; }
+
+    /* Telemóvel: no cabeçalho, à esquerda da estrela; desliza da margem direita. */
+    .pdf-btn { right: 3.5rem; top: .5rem; transform: translateX(2.75rem); }
+    .viagem-card.aberto .pdf-btn { opacity: 1; transform: translateX(0); pointer-events: auto; }
+
+    /* Computador: desliza para fora, saindo de trás da borda direita. */
+    @media (min-width: 768px) {
+      .pdf-btn { right: 0; top: .5rem; transform: translateX(0); z-index: 0; }
+      .viagem-card.aberto .pdf-btn { opacity: 1; transform: translateX(100%); z-index: 20; pointer-events: auto; }
+    }
+
+    /* Cantos arredondados do primeiro/último cartão (compensa a remoção de
+       overflow-hidden no artigo para o botão PDF poder sair do cartão). */
+    #results article ul > li:first-child { border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem; }
+    #results article ul > li:last-child { border-bottom-left-radius: 1.5rem; border-bottom-right-radius: 1.5rem; }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
     }

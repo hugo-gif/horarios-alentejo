@@ -508,6 +508,7 @@ function buildTrips() {
               sentido: sentido.nome || '',
               tipoServico: sentido.tipo_servico || null,
               periodo: sentido.periodo || null,
+              fonte: servico.fonte || null,
               origem: pOrigem.nome,
               destino: pDestino.nome,
               origemNorm: norm(pOrigem.nome),
@@ -606,6 +607,7 @@ function consolidar(trips) {
         linhas: new Set(),
         tipos: new Set(),
         periodos: new Set(),
+        fontes: new Set(),
         rota: t.rota, // rota completa do primeiro serviço do grupo
       });
     }
@@ -614,6 +616,7 @@ function consolidar(trips) {
     g.linhas.add(t.linha);
     if (t.tipoServico) g.tipos.add(t.tipoServico);
     if (t.periodo) g.periodos.add(t.periodo);
+    if (t.fonte) g.fontes.add(t.fonte);
     // Prefere a rota mais detalhada (com mais paragens).
     if (t.rota && (!g.rota || t.rota.length > g.rota.length)) g.rota = t.rota;
   }
@@ -627,6 +630,7 @@ function consolidar(trips) {
       linhas: [...g.linhas],
       tipos: [...g.tipos],
       periodos: [...g.periodos],
+      fontes: [...g.fontes],
       rota: g.rota || [],
     }))
     .sort((a, b) => a.partidaMin - b.partidaMin);
@@ -679,6 +683,17 @@ function estrelaSVG() {
   </svg>`;
 }
 
+/* Ícone de documento (PDF oficial). */
+function pdfSVG() {
+  return `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+    <path d="M14 2v6h6" />
+    <path d="M9 13h6" />
+    <path d="M9 17h6" />
+    <path d="M9 9h1" />
+  </svg>`;
+}
+
 function tripCard(trip, isNext, isPast, index) {
   const cls = isNext ? 'viagem-proxima bg-brand-50/60' : (isPast ? 'viagem-passada' : '');
   const badge = isNext
@@ -714,8 +729,15 @@ function tripCard(trip, isNext, isPast, index) {
   const favKey = chaveFavorito(trip);
   const isFav = favoritos.has(favKey);
 
+  const fontes = (trip.fontes || []).filter(Boolean);
+  const pdfButtons = fontes
+    .map((f, i) => `<a href="pdfs_horarios/${esc(f)}" target="_blank" rel="noopener"
+        class="pdf-btn" style="top:${(0.5 + i * 2.75).toFixed(2)}rem"
+        title="Ver PDF Oficial" aria-label="Ver PDF Oficial (${esc(f)})">${pdfSVG()}</a>`)
+    .join('');
+
   return `
-    <li class="relative ${cls}">
+    <li class="viagem-card relative ${cls}">
       <button type="button"
               class="viagem-toggle flex w-full items-stretch gap-4 px-4 py-4 pr-12 text-left transition hover:bg-slate-50/70 focus:outline-none focus-visible:bg-slate-50"
               aria-expanded="false" aria-controls="rota-${index}">
@@ -762,6 +784,8 @@ function tripCard(trip, isNext, isPast, index) {
               title="${isFav ? 'Remover dos guardados' : 'Guardar viagem'}">
         ${estrelaSVG()}
       </button>
+
+      ${pdfButtons}
 
       <div id="rota-${index}" class="viagem-detalhe hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3">
         <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -811,7 +835,7 @@ function renderResults(trips, origem, destino, diaSemana) {
       <h2 class="text-sm font-bold text-slate-700">${consolidados.length} partida${consolidados.length === 1 ? '' : 's'}</h2>
       <span class="text-xs font-semibold text-slate-400">${esc(origem)} → ${esc(destino)}</span>
     </div>
-    <article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70">
+    <article class="rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <ul class="divide-y divide-slate-100">${rows}</ul>
     </article>`;
 
@@ -832,11 +856,15 @@ function ligarAcordeoes() {
       detalhe.classList.toggle('hidden', aberto);
       btn.setAttribute('aria-expanded', String(!aberto));
       if (seta) seta.classList.toggle('rotate-180', !aberto);
+
+      // Marca o cartão como aberto para a animação do botão PDF.
+      const card = btn.closest('li');
+      if (card) card.classList.toggle('aberto', !aberto);
     });
   });
 
-  // Os links do Google Maps não devem abrir/fechar o accordion.
-  box.querySelectorAll('.mapa-link').forEach((link) => {
+  // Os links do Google Maps e do PDF não devem abrir/fechar o accordion.
+  box.querySelectorAll('.mapa-link, .pdf-btn').forEach((link) => {
     link.addEventListener('click', (ev) => ev.stopPropagation());
   });
 }
