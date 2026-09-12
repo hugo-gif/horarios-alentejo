@@ -731,9 +731,9 @@ function tripCard(trip, isNext, isPast, index) {
 
   const fontes = (trip.fontes || []).filter(Boolean);
   const pdfButtons = fontes
-    .map((f, i) => `<a href="pdfs_horarios/${esc(f)}" target="_blank" rel="noopener"
+    .map((f, i) => `<button type="button" data-pdf="${esc(f)}"
         class="pdf-btn" style="top:${(0.5 + i * 2.75).toFixed(2)}rem"
-        title="Ver PDF Oficial" aria-label="Ver PDF Oficial (${esc(f)})">${pdfSVG()}</a>`)
+        title="Ver PDF Oficial" aria-label="Ver PDF Oficial (${esc(f)})">${pdfSVG()}</button>`)
     .join('');
 
   return `
@@ -863,9 +863,59 @@ function ligarAcordeoes() {
     });
   });
 
-  // Os links do Google Maps e do PDF não devem abrir/fechar o accordion.
-  box.querySelectorAll('.mapa-link, .pdf-btn').forEach((link) => {
+  // Os links do Google Maps não devem abrir/fechar o accordion.
+  box.querySelectorAll('.mapa-link').forEach((link) => {
     link.addEventListener('click', (ev) => ev.stopPropagation());
+  });
+
+  // O botão PDF abre o visualizador em modal, sem recolher o cartão.
+  box.querySelectorAll('.pdf-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const fonte = btn.getAttribute('data-pdf');
+      if (fonte) abrirPdf(fonte);
+    });
+  });
+}
+
+/* ---------------- Visualizador de PDF (modal) ---------------- */
+
+/* Abre o visualizador em modal para um ficheiro PDF. */
+function abrirPdf(fonte) {
+  const modal = document.getElementById('pdf-modal');
+  const frame = document.getElementById('pdf-frame');
+  if (!modal || !frame) return;
+
+  const url = `pdfs_horarios/${fonte}`;
+  document.getElementById('pdf-titulo').textContent = fonte;
+  document.getElementById('pdf-abrir').href = url;
+  const download = document.getElementById('pdf-download');
+  download.href = url;
+  download.setAttribute('download', fonte);
+
+  frame.src = url;
+  modal.classList.remove('hidden');
+  bloquearScroll();
+}
+
+/* Fecha o visualizador e limpa o iframe (para o PDF parar de renderizar). */
+function fecharPdf() {
+  const modal = document.getElementById('pdf-modal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  desbloquearScroll();
+  document.getElementById('pdf-frame').src = 'about:blank';
+}
+
+/* Liga os controlos do visualizador (fechar, overlay, ESC). */
+function ligarPdfModal() {
+  document.getElementById('pdf-fechar')?.addEventListener('click', fecharPdf);
+  document.getElementById('pdf-overlay')?.addEventListener('click', fecharPdf);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('pdf-modal')?.classList.contains('hidden')) {
+      fecharPdf();
+    }
   });
 }
 
@@ -2132,6 +2182,7 @@ async function init() {
   ligarSeletorParagens();
   ligarAssistente();
   ligarReporte();
+  ligarPdfModal();
 
   try {
     await loadData();
