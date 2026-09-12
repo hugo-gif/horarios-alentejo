@@ -1,6 +1,6 @@
 {
   "meta": {
-    "gerado_em": "2026-09-12T14:34:16+01:00",
+    "gerado_em": "2026-09-13T00:28:07+01:00",
     "descricao": "Horários extraídos dos PDFs públicos (pdfs_horarios/) via pdfplumber, com período (escolar/nao_escolar/anual) e tipo_servico normalizado."
   },
   "servicos": [
@@ -11,7 +11,7 @@
       "sentidos": [
         {
           "nome": "Beja → Vila Frades",
-          "tipo_servico": "segunda_feira_quarta_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -97,7 +97,7 @@
         },
         {
           "nome": "Vila Frades → Beja",
-          "tipo_servico": "segunda_feira_quarta_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -202,7 +202,7 @@
         },
         {
           "nome": "Beja → Vila Frades",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -284,7 +284,7 @@
         },
         {
           "nome": "Vila Frades → Beja",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -936,7 +936,7 @@
       "sentidos": [
         {
           "nome": "Cuba → Évora",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -1170,7 +1170,7 @@
         },
         {
           "nome": "Évora → Cuba",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -2135,7 +2135,7 @@
       "sentidos": [
         {
           "nome": "Ourique (Est.) → Castro Verde",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -2349,7 +2349,7 @@
         },
         {
           "nome": "Castro Verde → Ourique (Est.)",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -2570,7 +2570,7 @@
       "sentidos": [
         {
           "nome": "Beja → Moura",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -2872,7 +2872,7 @@
         },
         {
           "nome": "Moura → Beja",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -3199,7 +3199,7 @@
         },
         {
           "nome": "Beja → Moura",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -3501,7 +3501,7 @@
         },
         {
           "nome": "Moura → Beja",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -4401,7 +4401,7 @@
         },
         {
           "nome": "Beja → Mombeja",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -4555,7 +4555,7 @@
         },
         {
           "nome": "Mombeja → Beja",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -4634,7 +4634,7 @@
       "sentidos": [
         {
           "nome": "Serpa → Vale Vargo",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -4677,7 +4677,7 @@
         },
         {
           "nome": "Serpa → Vale Vargo",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -4710,7 +4710,7 @@
         },
         {
           "nome": "Vale Vargo → Serpa",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -4751,7 +4751,7 @@
         },
         {
           "nome": "Vale Vargo → Serpa",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -5425,7 +5425,7 @@
       "sentidos": [
         {
           "nome": "Pias → Vale Vargo",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -5454,7 +5454,7 @@
         },
         {
           "nome": "Vale Vargo → Pias",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -6561,7 +6561,7 @@
       "sentidos": [
         {
           "nome": "Mértola → Amendoeira Serra",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -6620,7 +6620,7 @@
         },
         {
           "nome": "Amendoeira Serra → Mértola",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -6687,7 +6687,7 @@
       "sentidos": [
         {
           "nome": "Mina S. Domingos → 13:4514:35 13:4507:45 Serpa",
-          "tipo_servico": "segunda_feira_terca_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -6849,7 +6849,7 @@
         },
         {
           "nome": "Mina S. Domingos → 13:4514:35 13:4507:45 Serpa",
-          "tipo_servico": "segunda_feira_terca_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -6944,7 +6944,7 @@
         },
         {
           "nome": "13:4514:35 13:4507:45 Serpa → Mina S. Domingos",
-          "tipo_servico": "segunda_feira_terca_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -7117,7 +7117,7 @@
         },
         {
           "nome": "13:4514:35 13:4507:45 Serpa → Mina S. Domingos",
-          "tipo_servico": "segunda_feira_terca_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -9161,7 +9161,7 @@
       "sentidos": [
         {
           "nome": "Ourique (Est.) → Castro Verde",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "anual",
           "paragens": [
             {
@@ -9264,7 +9264,7 @@
         },
         {
           "nome": "Castro Verde → Ourique (Est.)",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "anual",
           "paragens": [
             {
@@ -9525,7 +9525,7 @@
         },
         {
           "nome": "Cuba → Pedrogão",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -9714,7 +9714,7 @@
         },
         {
           "nome": "Pedrogão → Cuba",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -15810,7 +15810,7 @@
       "sentidos": [
         {
           "nome": "Évora → Évora",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -16008,7 +16008,7 @@
         },
         {
           "nome": "Évora → Évora",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -16342,7 +16342,7 @@
       "sentidos": [
         {
           "nome": "Mora → Évora",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -19301,7 +19301,7 @@
       "sentidos": [
         {
           "nome": "Reguengos → Vila Viçosa",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -19885,7 +19885,7 @@
       "sentidos": [
         {
           "nome": "Montemor O Novo → Viana Alentejo",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -20027,7 +20027,7 @@
         },
         {
           "nome": "Viana Alentejo → Montemor O Novo",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -20159,7 +20159,7 @@
         },
         {
           "nome": "Montemor O Novo → Viana Alentejo",
-          "tipo_servico": "segunda_feira_terca_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -20236,7 +20236,7 @@
         },
         {
           "nome": "Viana Alentejo → Montemor O Novo",
-          "tipo_servico": "segunda_feira_terca_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -21120,7 +21120,7 @@
       "sentidos": [
         {
           "nome": "Mora → Valongo",
-          "tipo_servico": "segunda_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -21332,7 +21332,7 @@
         },
         {
           "nome": "Valongo → Mora",
-          "tipo_servico": "segunda_feira_terca_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -21555,7 +21555,7 @@
         },
         {
           "nome": "Mora → Valongo",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -21748,7 +21748,7 @@
         },
         {
           "nome": "Valongo → Mora",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -22084,7 +22084,7 @@
       "sentidos": [
         {
           "nome": "Aldeia Pias → Vila Viçosa",
-          "tipo_servico": "segunda_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -22276,7 +22276,7 @@
         },
         {
           "nome": "Vila Viçosa → Aldeia Pias",
-          "tipo_servico": "segunda_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -24020,7 +24020,7 @@
       "sentidos": [
         {
           "nome": "Fronteira → Fronteira",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -24199,7 +24199,7 @@
         },
         {
           "nome": "Fronteira → Fronteira",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -25472,7 +25472,7 @@
       "sentidos": [
         {
           "nome": "Elvas → Portalegre",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -26410,7 +26410,7 @@
       "sentidos": [
         {
           "nome": "Ponte Sôr → Torre Vargens",
-          "tipo_servico": "segunda_feira_quinta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -27024,7 +27024,7 @@
       "sentidos": [
         {
           "nome": "Gavião → Ponte Sôr",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -27473,7 +27473,7 @@
         },
         {
           "nome": "Ponte Sôr → Gavião",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -28375,7 +28375,7 @@
       "sentidos": [
         {
           "nome": "Ponte Sôr → Tramaga",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -28898,7 +28898,7 @@
       "sentidos": [
         {
           "nome": "Amieira Tejo → Portalegre",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -29064,7 +29064,7 @@
         },
         {
           "nome": "Portalegre → Amieira Tejo",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -29237,7 +29237,7 @@
       "sentidos": [
         {
           "nome": "Galegos → Portalegre",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -29398,7 +29398,7 @@
         },
         {
           "nome": "Galegos → Portalegre",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -29504,7 +29504,7 @@
         },
         {
           "nome": "Portalegre → Galegos",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -29658,7 +29658,7 @@
         },
         {
           "nome": "Portalegre → Galegos",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -32439,7 +32439,7 @@
       "sentidos": [
         {
           "nome": "Fronteira → Portalegre",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -32523,7 +32523,7 @@
         },
         {
           "nome": "Fronteira → Portalegre",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -32574,7 +32574,7 @@
         },
         {
           "nome": "Portalegre → Fronteira",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -32658,7 +32658,7 @@
         },
         {
           "nome": "Portalegre → Fronteira",
-          "tipo_servico": "segunda_feira_terca_feira_quarta_feira_sexta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "nao_escolar",
           "paragens": [
             {
@@ -34617,7 +34617,7 @@
       "sentidos": [
         {
           "nome": "Cercal Alentejo → Sines (Terminal)",
-          "tipo_servico": "segunda_feira_quarta_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {
@@ -34943,7 +34943,7 @@
         },
         {
           "nome": "Sines (Terminal) → Cercal Alentejo",
-          "tipo_servico": "segunda_feira",
+          "tipo_servico": "dias_uteis",
           "periodo": "escolar",
           "paragens": [
             {

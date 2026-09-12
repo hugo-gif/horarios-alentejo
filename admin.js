@@ -16,6 +16,7 @@ const DATA_URL = 'horarios.json';
 
 const OCULTAS_KEY = 'ra_viagens_ocultas';
 const MANUAIS_KEY = 'ra_viagens_adicionadas';
+const ALTERACOES_KEY = 'ra_alteracoes_linhas';
 
 /* Email autorizado a aceder ao painel (bloqueio simples, sem OAuth). */
 const ADMIN_EMAIL = 'hugo.henrique.frade@gmail.com';
@@ -25,10 +26,12 @@ const state = {
   data: null,   // conteúdo de horarios.json
   stops: [],    // nomes únicos e válidos para o <datalist>
   trips: [],    // viagens oficiais achatadas
+  linhas: [],   // linhas/serviços agrupados (gestão por linha)
 };
 
 let viagensOcultas = new Map(); // chave -> { chave, origem, destino, partida, chegada, linha, operador }
 let viagensManuais = [];        // { id, linha, operador, sentido, tipoServico, paragens: [{nome, hora}] }
+let alteracoesLinhas = [];      // { id, chave, linha, operador, fonte, resumo, data }
 
 /* ---------------- Utilidades ---------------- */
 
@@ -234,6 +237,104 @@ function buildTrips() {
   state.trips = trips;
 }
 
+/* ---------------- Agrupamento por LINHA / SERVIÇO ----------------
+   Em vez de listar dezenas de milhares de pares origem-destino, agrupamos
+   cada serviço oficial numa "linha" única (ex.: "Linha 2 - BEJA - VILA DE
+   FRADES"). Cada linha agrega os seus sentidos, a sequência de paragens e o
+   PDF associado (fonte). */
+
+/* Chave estável de uma linha: linha + operador + fonte (PDF). */
+function chaveLinha(servico) {
+  return [norm(servico.linha), norm(servico.operador), norm(servico.fonte)].join('|');
+}
+
+/* Constrói a lista de linhas agrupadas a partir dos serviços oficiais. */
+function buildLinhas() {
+  const mapa = new Map();
+
+  for (const servico of state.data.servicos) {
+    const chave = chaveLinha(servico);
+    let linha = mapa.get(chave);
+    if (!linha) {
+      linha = {
+        chave,
+        linha: servico.linha || '—',
+        operador: servico.operador || '—',
+        fonte: servico.fonte || '',
+        sentidos: [],
+        paragens: [],       // sequência única de paragens (ordem de aparição)
+        paragensSet: new Set(),
+        totalParagens: 0,
+        totalViagens: 0,
+      };
+      mapa.set(chave, linha);
+    }
+
+    for (const sentido of servico.sentidos || []) {
+      const paragens = (sentido.paragens || []).filter((p) => isValidStopName(p.nome));
+      if (!paragens.length) continue;
+
+      linha.sentidos.push({
+        nome: sentido.nome || '',
+        tipoServico: sentido.tipo_servico || null,
+        periodo: sentido.periodo || null,
+        paragens: paragens.map((p) => ({ nome: p.nome, horarios: [...(p.horarios || [])] })),
+      });
+
+      for (const p of paragens) {
+        const n = norm(p.nome);
+        if (!linha.paragensSet.has(n)) {
+          linha.paragensSet.add(n);
+          linha.paragens.push(p.nome);
+        }
+      }
+    }
+  }
+
+  // Calcula totais e descarta linhas sem paragens válidas.
+  const linhas = [];
+  for (const linha of mapa.values()) {
+    if (!linha.sentidos.length) continue;
+    linha.totalParagens = linha.paragens.length;
+    linha.totalViagens = linha.sentidos.reduce((acc, s) => acc + s.paragens.length, 0);
+    delete linha.paragensSet;
+    linhas.push(linha);
+  }
+
+  // Ordena por nome de linha (natural, com números).
+  linhas.sort((a, b) => a.linha.localeCompare(b.linha, 'pt', { numeric: true, sensitivity: 'base' }));
+  state.linhas = linhas;
+}
+
+/* Verifica se uma linha está oculta (todas as suas viagens ocultas). */
+function linhaOculta(linha) {
+  let total = 0;
+  let ocultas = 0;
+  for (const sentido of linha.sentidos) {
+    const paragens = sentido.paragens;
+    for (let oi = 0; oi < paragens.length; oi++) {
+      const pOrigem = paragens[oi];
+      for (let di = oi + 1; di < paragens.length; di++) {
+        const pDestino = paragens[di];
+        const pares = emparelharHorarios(pOrigem.horarios, pDestino.horarios);
+        for (const par of pares) {
+          total++;
+          const chave = chaveViagem({
+            origem: pOrigem.nome,
+            destino: pDestino.nome,
+            partida: par.partida,
+            chegada: par.chegada,
+            linha: linha.linha,
+            operador: linha.operador,
+          });
+          if (viagensOcultas.has(chave)) ocultas++;
+        }
+      }
+    }
+  }
+  return total > 0 && ocultas >= total;
+}
+
 /* ---------------- Camada: viagens ocultas ---------------- */
 
 function carregarOcultas() {
@@ -309,32 +410,102 @@ function novoIdManual() {
   return 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-/* ---------------- Renderização: lista de viagens existentes ---------------- */
+/* ---------------- Camada: alterações registadas (log de edições) ----------------
+   Cada vez que uma linha é editada no modal, registamos aqui um log para que o
+   painel "Alterações registadas" reflita imediatamente a ação. */
 
-function viagemLinha(trip) {
-  const chave = chaveViagem(trip);
-  const oculta = viagensOcultas.has(chave);
-  const tipo = tipoLabel(trip.tipoServico);
+function carregarAlteracoes() {
+  alteracoesLinhas = [];
+  try {
+    const raw = localStorage.getItem(ALTERACOES_KEY);
+    if (!raw) return;
+    const lista = JSON.parse(raw);
+    if (Array.isArray(lista)) alteracoesLinhas = lista.filter((a) => a && typeof a.chave === 'string');
+  } catch (err) {
+    console.warn('Alterações de linhas ilegíveis:', err);
+  }
+}
 
-  const acao = oculta
-    ? `<button type="button" class="viagem-reativar flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100" data-reativar="${esc(chave)}">${olhoSVG()} Reativar</button>`
-    : `<button type="button" class="viagem-ocultar flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200" data-ocultar="${esc(chave)}">${olhoCortadoSVG()} Ocultar</button>`;
+function gravarAlteracoes() {
+  try {
+    localStorage.setItem(ALTERACOES_KEY, JSON.stringify(alteracoesLinhas));
+  } catch (err) {
+    console.warn('Não foi possível gravar alterações de linhas:', err);
+  }
+}
+
+/* Regista (ou atualiza) o log de uma linha editada. */
+function registarAlteracaoLinha({ chave, linha, operador, fonte, resumo }) {
+  const existente = alteracoesLinhas.find((a) => a.chave === chave);
+  const registo = {
+    id: existente ? existente.id : 'l_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+    chave,
+    linha: linha || '—',
+    operador: operador || '',
+    fonte: fonte || '',
+    resumo: resumo || 'Linha atualizada',
+    data: new Date().toISOString(),
+  };
+  if (existente) {
+    Object.assign(existente, registo);
+  } else {
+    alteracoesLinhas.unshift(registo);
+  }
+  gravarAlteracoes();
+  return registo;
+}
+
+function removerAlteracaoLinha(id) {
+  alteracoesLinhas = alteracoesLinhas.filter((a) => a.id !== id);
+  gravarAlteracoes();
+}
+
+/* ---------------- Renderização: lista de LINHAS existentes ---------------- */
+
+/* Ícone de documento/PDF. */
+function pdfSVG() {
+  return `<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+    <path d="M14 2v6h6" />
+  </svg>`;
+}
+
+/* Ícone de lápis (editar). */
+function lapisSVG() {
+  return `<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>`;
+}
+
+/* Uma linha da lista de gestão: nome, nº de paragens, PDF e ações. */
+function linhaItem(linha) {
+  const oculta = linhaOculta(linha);
+  const nParagens = linha.totalParagens;
+  const nSentidos = linha.sentidos.length;
+
+  const acaoOcultar = oculta
+    ? `<button type="button" class="linha-reativar flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100" data-reativar-linha="${esc(linha.chave)}">${olhoSVG()} Reativar</button>`
+    : `<button type="button" class="linha-ocultar flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200" data-ocultar-linha="${esc(linha.chave)}">${olhoCortadoSVG()} Ocultar</button>`;
 
   return `
-    <li class="flex items-center gap-3 px-4 py-3 ${oculta ? 'opacity-60' : ''}">
+    <li class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center ${oculta ? 'opacity-60' : ''}">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-1.5">
           ${oculta ? '<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Ocultada</span>' : ''}
-          <span class="truncate text-sm font-bold text-slate-900">${esc(trip.origem)} <span class="text-brand-600">→</span> ${esc(trip.destino)}</span>
+          <span class="truncate text-sm font-bold text-slate-900">${esc(linha.linha)}</span>
         </div>
         <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-          <span class="font-semibold tabular-nums text-slate-700">${esc(trip.partida)}–${esc(trip.chegada)}</span>
-          ${trip.linha ? `<span>· ${esc(trip.linha)}</span>` : ''}
-          ${trip.operador ? `<span>· ${esc(trip.operador)}</span>` : ''}
-          ${tipo ? `<span>· ${esc(tipo)}</span>` : ''}
+          <span class="font-semibold text-slate-700">${nParagens} paragen${nParagens === 1 ? '' : 's'}</span>
+          <span>· ${nSentidos} sentido${nSentidos === 1 ? '' : 's'}</span>
+          ${linha.operador && linha.operador !== '—' ? `<span>· ${esc(linha.operador)}</span>` : ''}
+          ${linha.fonte ? `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">${pdfSVG()} ${esc(linha.fonte)}</span>` : ''}
         </div>
       </div>
-      <div class="shrink-0">${acao}</div>
+      <div class="flex shrink-0 items-center gap-2">
+        <button type="button" class="linha-editar flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-brand-700" data-editar-linha="${esc(linha.chave)}">${lapisSVG()} Editar</button>
+        ${acaoOcultar}
+      </div>
     </li>`;
 }
 
@@ -344,30 +515,26 @@ function renderViagens() {
 
   const filtro = norm(document.getElementById('gestao-filtro')?.value || '');
 
-  let trips = state.trips;
+  let linhas = state.linhas;
   if (filtro) {
-    trips = trips.filter((t) =>
-      norm(`${t.origem} ${t.destino} ${t.linha} ${t.operador}`).includes(filtro)
-    );
+    linhas = linhas.filter((l) => {
+      // Filtra pelo nome da linha, operador, PDF ou QUALQUER localidade do percurso.
+      const alvo = norm(`${l.linha} ${l.operador} ${l.fonte} ${l.paragens.join(' ')}`);
+      return alvo.includes(filtro);
+    });
   }
 
-  if (!trips.length) {
+  if (!linhas.length) {
     box.innerHTML = `
       <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center">
-        <p class="text-sm font-semibold text-slate-600">${filtro ? 'Sem resultados para a pesquisa' : 'Nenhuma viagem carregada'}</p>
+        <p class="text-sm font-semibold text-slate-600">${filtro ? 'Sem resultados para a pesquisa' : 'Nenhuma linha carregada'}</p>
         <p class="mt-1 text-xs text-slate-400">${filtro ? 'Tente outro termo.' : 'Verifique se horarios.json está acessível.'}</p>
       </div>`;
     return;
   }
 
-  // Limita a renderização para manter a página fluida.
-  const MAX = 400;
-  const visiveis = trips.slice(0, MAX);
-  const nota = trips.length > MAX
-    ? `<p class="px-4 py-2 text-[11px] text-slate-400">A mostrar ${MAX} de ${trips.length} viagens. Refine a pesquisa.</p>`
-    : '';
-
-  box.innerHTML = `<ul class="divide-y divide-slate-100">${visiveis.map(viagemLinha).join('')}</ul>${nota}`;
+  const nota = `<p class="px-4 py-2 text-[11px] text-slate-400">${linhas.length} linha${linhas.length === 1 ? '' : 's'}${filtro ? ' encontrada' + (linhas.length === 1 ? '' : 's') : ''}.</p>`;
+  box.innerHTML = `<ul class="divide-y divide-slate-100">${linhas.map(linhaItem).join('')}</ul>${nota}`;
   ligarViagens();
 }
 
@@ -375,21 +542,29 @@ function ligarViagens() {
   const box = document.getElementById('gestao-lista');
   if (!box) return;
 
-  box.querySelectorAll('[data-ocultar]').forEach((btn) => {
+  box.querySelectorAll('[data-editar-linha]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const chave = btn.getAttribute('data-ocultar');
-      const trip = state.trips.find((t) => chaveViagem(t) === chave);
-      if (!trip) return;
-      ocultarViagem(trip);
+      const linha = state.linhas.find((l) => l.chave === btn.getAttribute('data-editar-linha'));
+      if (linha) abrirModalLinha(linha);
+    });
+  });
+
+  box.querySelectorAll('[data-ocultar-linha]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const linha = state.linhas.find((l) => l.chave === btn.getAttribute('data-ocultar-linha'));
+      if (!linha) return;
+      ocultarLinha(linha);
       renderViagens();
       renderAlteracoes();
       atualizarResumo();
     });
   });
 
-  box.querySelectorAll('[data-reativar]').forEach((btn) => {
+  box.querySelectorAll('[data-reativar-linha]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      reativarViagem(btn.getAttribute('data-reativar'));
+      const linha = state.linhas.find((l) => l.chave === btn.getAttribute('data-reativar-linha'));
+      if (!linha) return;
+      reativarLinha(linha);
       renderViagens();
       renderAlteracoes();
       atualizarResumo();
@@ -397,10 +572,489 @@ function ligarViagens() {
   });
 }
 
+/* ---------------- Ocultar / reativar LINHA inteira ---------------- */
+
+/* Oculta todas as viagens (pares origem-destino) de uma linha. */
+function ocultarLinha(linha) {
+  for (const sentido of linha.sentidos) {
+    const paragens = sentido.paragens;
+    for (let oi = 0; oi < paragens.length; oi++) {
+      const pOrigem = paragens[oi];
+      for (let di = oi + 1; di < paragens.length; di++) {
+        const pDestino = paragens[di];
+        const pares = emparelharHorarios(pOrigem.horarios, pDestino.horarios);
+        for (const par of pares) {
+          ocultarViagem({
+            origem: pOrigem.nome,
+            destino: pDestino.nome,
+            partida: par.partida,
+            chegada: par.chegada,
+            linha: linha.linha,
+            operador: linha.operador,
+          });
+        }
+      }
+    }
+  }
+  gravarOcultas();
+}
+
+/* Reativa todas as viagens de uma linha. */
+function reativarLinha(linha) {
+  for (const sentido of linha.sentidos) {
+    const paragens = sentido.paragens;
+    for (let oi = 0; oi < paragens.length; oi++) {
+      const pOrigem = paragens[oi];
+      for (let di = oi + 1; di < paragens.length; di++) {
+        const pDestino = paragens[di];
+        const pares = emparelharHorarios(pOrigem.horarios, pDestino.horarios);
+        for (const par of pares) {
+          const chave = chaveViagem({
+            origem: pOrigem.nome,
+            destino: pDestino.nome,
+            partida: par.partida,
+            chegada: par.chegada,
+            linha: linha.linha,
+            operador: linha.operador,
+          });
+          viagensOcultas.delete(chave);
+        }
+      }
+    }
+  }
+  gravarOcultas();
+}
+
+/* ---------------- Modal de edição da linha ----------------
+   Modelo padrão de Circulações/Viagens:
+   - Secção A: rota (espinha dorsal) = lista ordenada de paragens.
+   - Secção B: circulações = cada viagem tem calendário (período + dias) e
+     uma tabela de horas por paragem (vazio/"-" = não para). */
+
+let linhaEmEdicao = null;
+
+/* Períodos possíveis de uma viagem. */
+const PERIODOS = [
+  { id: 'escolar', label: 'Escolar' },
+  { id: 'nao_escolar', label: 'Não Escolar' },
+  { id: 'anual', label: 'Todo o Ano' },
+];
+
+/* Dias de funcionamento possíveis de uma viagem (select compacto). */
+const DIAS = [
+  { id: 'dias_uteis', label: 'Dias Úteis' },
+  { id: 'sabado', label: 'Sábados' },
+  { id: 'domingo', label: 'Domingos' },
+  { id: 'todos_os_dias', label: 'Todos os dias' },
+  { id: 'especificos', label: 'Dias Específicos...' },
+  { id: 'evento', label: 'Período / Evento (Datas)...' },
+];
+
+/* Dias específicos da semana (mini-painel de alternância). O campo `dia`
+   corresponde ao token usado no tipo_servico composto do JSON. */
+const DIAS_ESPECIFICOS = [
+  { id: 'seg', label: '2ª', dia: 'segunda_feira' },
+  { id: 'ter', label: '3ª', dia: 'terca_feira' },
+  { id: 'qua', label: '4ª', dia: 'quarta_feira' },
+  { id: 'qui', label: '5ª', dia: 'quinta_feira' },
+  { id: 'sex', label: '6ª', dia: 'sexta_feira' },
+  { id: 'sab', label: 'Sáb', dia: 'sabado' },
+  { id: 'dom', label: 'Dom', dia: 'domingo' },
+];
+
+/* Converte o tipo_servico do JSON para o modo de dias do modal. */
+function diasDeTipo(tipo) {
+  const t = String(tipo || '');
+  if (t === 'todos_os_dias') return 'todos_os_dias';
+  if (t === 'dias_uteis' || t === 'segunda_a_sexta') return 'dias_uteis';
+  if (t === 'sabado') return 'sabado';
+  if (t === 'domingo') return 'domingo';
+  // Combinações de dias (ex.: segunda_feira_quarta_feira) → dias específicos.
+  if (DIAS_ESPECIFICOS.some((d) => t.includes(d.dia))) return 'especificos';
+  return 'dias_uteis';
+}
+
+/* Extrai os dias específicos de um tipo_servico composto. */
+function diasEspecificosDeTipo(tipo) {
+  const t = String(tipo || '');
+  return DIAS_ESPECIFICOS.filter((d) => t.includes(d.dia)).map((d) => d.dia);
+}
+
+/* Converte o modo de dias do modal para o tipo_servico do JSON.
+   Recebe o objeto da viagem (tem `dias` e `diasEspecificos`). */
+function tipoDeDias(v) {
+  const d = String(v.dias || 'dias_uteis');
+  if (d === 'todos_os_dias') return 'todos_os_dias';
+  if (d === 'sabado') return 'sabado';
+  if (d === 'domingo') return 'domingo';
+  if (d === 'especificos') {
+    const dias = (v.diasEspecificos || []).filter(Boolean);
+    return dias.length ? dias.join('_') : 'dias_uteis';
+  }
+  if (d === 'evento') return 'todos_os_dias';
+  return 'dias_uteis';
+}
+
+/* Constrói o modelo de edição a partir de uma linha agrupada. */
+function construirModeloEdicao(linha) {
+  // Secção A: rota = paragens únicas por ordem de aparição.
+  const rota = [...linha.paragens];
+
+  // Secção B: expande cada sentido nas suas viagens (uma coluna por partida).
+  // Em cada sentido, as paragens partilham `horarios[]` alinhado por índice:
+  // o índice i é a i-ésima viagem. Vazio / "-" = não efetua serviço.
+  const viagens = [];
+  for (const sentido of linha.sentidos) {
+    const paragens = sentido.paragens || [];
+    const temEvento = !!(sentido.data_inicio || sentido.data_fim);
+    const nColunas = paragens.reduce((m, p) => Math.max(m, (p.horarios || []).length), 0);
+    for (let c = 0; c < nColunas; c++) {
+      const horas = {};
+      let temHora = false;
+      for (const p of paragens) {
+        const val = (p.horarios || [])[c];
+        const hora = toMinutes(val) != null ? val : '';
+        if (hora) temHora = true;
+        horas[norm(p.nome)] = hora;
+      }
+      if (!temHora) continue; // coluna sem qualquer hora (ruído)
+      viagens.push({
+        nome: sentido.nome || '',
+        periodo: sentido.periodo === 'escolar' ? 'escolar'
+          : sentido.periodo === 'nao_escolar' ? 'nao_escolar' : 'anual',
+        dias: temEvento ? 'evento' : diasDeTipo(sentido.tipoServico),
+        diasEspecificos: diasEspecificosDeTipo(sentido.tipoServico),
+        data_inicio: sentido.data_inicio || '',
+        data_fim: sentido.data_fim || '',
+        horas,
+      });
+    }
+  }
+
+  return { rota, viagens };
+}
+
+function abrirModalLinha(linha) {
+  const modal = document.getElementById('linha-modal');
+  if (!modal) return;
+
+  linhaEmEdicao = {
+    chave: linha.chave,
+    linha: linha.linha,
+    operador: (linha.operador && linha.operador !== '—') ? linha.operador : '',
+    fonte: linha.fonte || '',
+    modelo: construirModeloEdicao(linha),
+  };
+
+  document.getElementById('linha-modal-titulo').textContent = linha.linha;
+  document.getElementById('linha-modal-operador').value = linhaEmEdicao.operador;
+  document.getElementById('linha-modal-fonte').value = linhaEmEdicao.fonte;
+
+  renderMatriz();
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function fecharModalLinha() {
+  const modal = document.getElementById('linha-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+  linhaEmEdicao = null;
+}
+
+/* ===== Matriz de horários (paragens × viagens) ===== */
+
+/* Renderiza a matriz: paragens na vertical, viagens nas colunas. */
+function renderMatriz() {
+  const box = document.getElementById('matriz-grid');
+  if (!box || !linhaEmEdicao) return;
+  const { rota, viagens } = linhaEmEdicao.modelo;
+
+  if (!rota.length && !viagens.length) {
+    box.innerHTML = `<p class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-xs font-semibold text-slate-400">Sem dados. Use "Adicionar Paragem" para começar.</p>`;
+    return;
+  }
+
+  const opcoesPeriodo = (sel) => PERIODOS.map((p) => `<option value="${p.id}" ${sel === p.id ? 'selected' : ''}>${p.label}</option>`).join('');
+  const opcoesDias = (sel) => DIAS.map((d) => `<option value="${d.id}" ${sel === d.id ? 'selected' : ''}>${d.label}</option>`).join('');
+
+  // Cabeçalho das colunas (uma por viagem), com calendário + lixo.
+  const cabecalho = viagens.map((v, vi) => {
+    const diasEspecificosHtml = DIAS_ESPECIFICOS.map((d) => {
+      const ativo = (v.diasEspecificos || []).includes(d.dia);
+      const cls = ativo ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+      return `<button type="button" class="matriz-dia-toggle rounded-md px-1.5 py-1 text-[10px] font-bold transition ${cls}" data-campo="dias-especifico" data-viagem="${vi}" data-dia="${d.dia}" aria-pressed="${ativo}">${d.label}</button>`;
+    }).join('');
+
+    return `
+    <th class="min-w-[170px] border-l border-slate-200 px-2 py-1.5 align-top">
+      <div class="mb-1 flex items-center justify-between gap-1">
+        <span class="min-w-0 truncate text-[11px] font-bold text-slate-700" title="${esc(v.nome)}">V${vi + 1}${v.nome ? ` · ${esc(v.nome)}` : ''}</span>
+        <button type="button" class="matriz-remover-viagem flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" data-remover-viagem="${vi}" aria-label="Eliminar viagem ${vi + 1}" title="Eliminar viagem">${lixoSVG()}</button>
+      </div>
+      <select data-campo="periodo" data-viagem="${vi}" aria-label="Período da viagem ${vi + 1}"
+              class="mb-1 w-full rounded-lg border border-slate-200 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15">${opcoesPeriodo(v.periodo)}</select>
+      <select data-campo="dias" data-viagem="${vi}" aria-label="Dias da viagem ${vi + 1}"
+              class="w-full rounded-lg border border-slate-200 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15">${opcoesDias(v.dias)}</select>
+      <div class="matriz-dias-especificos mt-1 flex flex-wrap justify-center gap-1 ${v.dias === 'especificos' ? '' : 'hidden'}" data-viagem="${vi}">${diasEspecificosHtml}</div>
+      <div class="matriz-evento-datas mt-1 space-y-1 ${v.dias === 'evento' ? '' : 'hidden'}" data-viagem="${vi}">
+        <label class="flex items-center gap-1">
+          <span class="shrink-0 text-[9px] font-semibold text-slate-400">De</span>
+          <input type="date" value="${esc(v.data_inicio)}" data-campo="data_inicio" data-viagem="${vi}" aria-label="Data de início da viagem ${vi + 1}"
+                 class="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px] text-slate-700 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15" />
+        </label>
+        <label class="flex items-center gap-1">
+          <span class="shrink-0 text-[9px] font-semibold text-slate-400">Até</span>
+          <input type="date" value="${esc(v.data_fim)}" data-campo="data_fim" data-viagem="${vi}" aria-label="Data de fim da viagem ${vi + 1}"
+                 class="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px] text-slate-700 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15" />
+        </label>
+      </div>
+    </th>`;
+  }).join('');
+
+  // Linhas (paragens) com células de hora por viagem.
+  const linhas = rota.map((nome, pi) => {
+    const chave = norm(nome);
+    const celulas = viagens.map((v, vi) => {
+      const hora = v.horas[chave] || '';
+      const vazio = !toMinutes(hora);
+      return `<td class="border-l border-slate-100 p-1">
+        <input type="text" value="${esc(hora)}" data-campo="hora" data-viagem="${vi}" data-paragem="${pi}"
+               placeholder="--:--" inputmode="numeric" aria-label="Hora de ${esc(nome)} na viagem ${vi + 1}"
+               class="w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-brand-600/15 ${vazio ? 'border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-300 bg-white text-slate-900'}" />
+      </td>`;
+    }).join('');
+    return `<tr>
+      <th class="min-w-[160px] border-r border-slate-200 bg-white px-2 py-1.5 text-left">
+        <input type="text" value="${esc(nome)}" data-campo="paragem-nome" data-paragem="${pi}"
+               placeholder="Nome da paragem"
+               class="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-900 outline-none transition focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15" />
+      </th>
+      ${celulas}
+    </tr>`;
+  }).join('');
+
+  box.innerHTML = `<table class="min-w-full border-collapse text-xs">
+    <thead><tr>
+      <th class="min-w-[160px] border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-400">Paragem</th>
+      ${cabecalho}
+    </tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>`;
+
+  ligarMatriz();
+}
+
+/* Lê as edições (nomes de paragem e horas) de volta para o modelo. */
+function sincronizarMatriz() {
+  const box = document.getElementById('matriz-grid');
+  if (!box || !linhaEmEdicao) return;
+  const { rota, viagens } = linhaEmEdicao.modelo;
+
+  box.querySelectorAll('[data-campo="paragem-nome"]').forEach((input) => {
+    const pi = Number(input.getAttribute('data-paragem'));
+    if (rota[pi] != null) rota[pi] = input.value.trim();
+  });
+
+  box.querySelectorAll('[data-campo="hora"]').forEach((input) => {
+    const vi = Number(input.getAttribute('data-viagem'));
+    const pi = Number(input.getAttribute('data-paragem'));
+    const nome = rota[pi];
+    const viagem = viagens[vi];
+    if (nome == null || !viagem) return;
+    const val = input.value.trim();
+    viagem.horas[norm(nome)] = toMinutes(val) != null ? val : '';
+  });
+
+  box.querySelectorAll('[data-campo="periodo"]').forEach((sel) => {
+    const vi = Number(sel.getAttribute('data-viagem'));
+    if (viagens[vi]) viagens[vi].periodo = sel.value;
+  });
+
+  box.querySelectorAll('[data-campo="dias"]').forEach((sel) => {
+    const vi = Number(sel.getAttribute('data-viagem'));
+    if (viagens[vi]) viagens[vi].dias = sel.value;
+  });
+
+  // Dias específicos (alternância de botões).
+  box.querySelectorAll('[data-campo="dias-especifico"]').forEach((btn) => {
+    const vi = Number(btn.getAttribute('data-viagem'));
+    const viagem = viagens[vi];
+    if (!viagem) return;
+    const dia = btn.getAttribute('data-dia');
+    const ativo = btn.getAttribute('aria-pressed') === 'true';
+    const set = new Set(viagem.diasEspecificos || []);
+    if (ativo) set.add(dia); else set.delete(dia);
+    viagem.diasEspecificos = [...set];
+  });
+
+  // Evento: intervalo de datas.
+  box.querySelectorAll('[data-campo="data_inicio"]').forEach((input) => {
+    const vi = Number(input.getAttribute('data-viagem'));
+    if (viagens[vi]) viagens[vi].data_inicio = input.value.trim();
+  });
+  box.querySelectorAll('[data-campo="data_fim"]').forEach((input) => {
+    const vi = Number(input.getAttribute('data-viagem'));
+    if (viagens[vi]) viagens[vi].data_fim = input.value.trim();
+  });
+}
+
+/* Liga os controlos da matriz (eliminar viagem, dias específicos, modo de dias). */
+function ligarMatriz() {
+  const box = document.getElementById('matriz-grid');
+  if (!box || !linhaEmEdicao) return;
+
+  // Eliminar viagem (coluna inteira).
+  box.querySelectorAll('[data-remover-viagem]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sincronizarMatriz();
+      const vi = Number(btn.getAttribute('data-remover-viagem'));
+      linhaEmEdicao.modelo.viagens.splice(vi, 1);
+      renderMatriz();
+    });
+  });
+
+  // Alternância de dias específicos da semana.
+  box.querySelectorAll('.matriz-dia-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ativo = btn.getAttribute('aria-pressed') === 'true';
+      btn.setAttribute('aria-pressed', String(!ativo));
+      if (!ativo) {
+        btn.classList.remove('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+        btn.classList.add('bg-brand-600', 'text-white');
+      } else {
+        btn.classList.remove('bg-brand-600', 'text-white');
+        btn.classList.add('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+      }
+    });
+  });
+
+  // Mudança do modo de dias → re-renderiza para mostrar/ocultar o mini-painel.
+  box.querySelectorAll('[data-campo="dias"]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      sincronizarMatriz();
+      renderMatriz();
+    });
+  });
+}
+
+/* ===== Guardar: compila cada viagem para o formato do JSON ===== */
+
+function guardarModalLinha() {
+  if (!linhaEmEdicao) return;
+  sincronizarMatriz();
+
+  const novoOperador = document.getElementById('linha-modal-operador').value.trim();
+  const novaFonte = document.getElementById('linha-modal-fonte').value.trim();
+  const rota = linhaEmEdicao.modelo.rota.filter((n) => isValidStopName(n));
+  const chaves = rota.map((n) => norm(n));
+
+  // Agrupa as viagens por (sentido, período, dias, dias específicos, evento)
+  // para reconstruir os sentidos, preservando as várias colunas de horários.
+  const grupos = new Map();
+  for (const v of linhaEmEdicao.modelo.viagens) {
+    const chave = [
+      norm(v.nome || ''),
+      v.periodo,
+      String(v.dias || ''),
+      (v.diasEspecificos || []).slice().sort().join(','),
+      v.data_inicio || '',
+      v.data_fim || '',
+    ].join('|');
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        nome: v.nome || '', periodo: v.periodo, dias: v.dias,
+        diasEspecificos: v.diasEspecificos || [],
+        data_inicio: v.data_inicio || '', data_fim: v.data_fim || '',
+        trips: [],
+      });
+    }
+    grupos.get(chave).trips.push(v);
+  }
+
+  const sentidos = [];
+  for (const g of grupos.values()) {
+    const paragens = chaves.map((chave, i) => ({ nome: rota[i], horarios: [] }));
+    for (const trip of g.trips) {
+      chaves.forEach((chave, i) => {
+        const hora = trip.horas[chave];
+        paragens[i].horarios.push(toMinutes(hora) != null ? hora : '-');
+      });
+    }
+    const paragensFinais = paragens.filter((p) => p.horarios.some((h) => toMinutes(h) != null));
+    if (paragensFinais.length < 2) continue; // precisa de origem + destino
+    const sentido = {
+      nome: g.nome || `${paragensFinais[0].nome} → ${paragensFinais[paragensFinais.length - 1].nome}`,
+      tipo_servico: tipoDeDias(g),
+      periodo: g.periodo,
+      paragens: paragensFinais,
+    };
+    // Evento: guarda o intervalo de datas.
+    if (g.dias === 'evento') {
+      if (g.data_inicio) sentido.data_inicio = g.data_inicio;
+      if (g.data_fim) sentido.data_fim = g.data_fim;
+    }
+    sentidos.push(sentido);
+  }
+
+  // Aplica as alterações ao serviço correspondente em state.data.
+  const chave = linhaEmEdicao.chave;
+  for (const servico of state.data.servicos) {
+    if (chaveLinha(servico) !== chave) continue;
+    servico.operador = novoOperador || null;
+    servico.fonte = novaFonte || servico.fonte;
+    servico.sentidos = sentidos;
+  }
+
+  // Reconstrói as estruturas derivadas.
+  buildStops();
+  populateDatalist();
+  buildTrips();
+  buildLinhas();
+  renderViagens();
+
+  // Regista a alteração no histórico (obrigatório).
+  registarAlteracaoLinha({
+    chave,
+    linha: linhaEmEdicao.linha,
+    operador: novoOperador || '',
+    fonte: novaFonte || '',
+    resumo: 'Horários/Paragens atualizados',
+  });
+  renderAlteracoes();
+  atualizarResumo();
+  fecharModalLinha();
+  setStatus('Linha atualizada com sucesso.');
+}
+
 /* ---------------- Renderização: alterações registadas ---------------- */
 
 function alteracaoLinha(item) {
   const isManual = item.tipo === 'manual';
+  const isEditada = item.tipo === 'editada';
+
+  if (isEditada) {
+    return `
+    <li class="flex items-center gap-3 px-4 py-3">
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">Editada</span>
+          <span class="truncate text-sm font-bold text-slate-900">${esc(item.linha)}</span>
+        </div>
+        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+          <span class="font-semibold text-slate-700">${esc(item.resumo)}</span>
+          ${item.operador ? `<span>· ${esc(item.operador)}</span>` : ''}
+          ${item.fonte ? `<span>· ${esc(item.fonte)}</span>` : ''}
+        </div>
+      </div>
+      <div class="shrink-0">
+        <button type="button" class="alteracao-eliminar flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" data-alteracao-id="${esc(item.id)}" aria-label="Remover registo" title="Remover registo">${lixoSVG()}</button>
+      </div>
+    </li>`;
+  }
+
   const etiqueta = isManual
     ? '<span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">Manual</span>'
     : '<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Ocultada</span>';
@@ -450,7 +1104,9 @@ function renderAlteracoes() {
     };
   });
 
-  const itens = [...manuais, ...ocultadas];
+  const editadas = alteracoesLinhas.map((a) => ({ tipo: 'editada', ...a }));
+
+  const itens = [...editadas, ...manuais, ...ocultadas];
 
   if (!itens.length) {
     box.innerHTML = '<p class="px-1 py-6 text-center text-sm font-semibold text-slate-400">Sem alterações.</p>';
@@ -483,6 +1139,14 @@ function ligarAlteracoes() {
       atualizarResumo();
     });
   });
+
+  box.querySelectorAll('[data-alteracao-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      removerAlteracaoLinha(btn.getAttribute('data-alteracao-id'));
+      renderAlteracoes();
+      atualizarResumo();
+    });
+  });
 }
 
 function atualizarResumo() {
@@ -490,8 +1154,9 @@ function atualizarResumo() {
   if (!el) return;
   const nOcultas = viagensOcultas.size;
   const nManuais = viagensManuais.length;
-  const total = nOcultas + nManuais;
-  el.textContent = `${total} alteraç${total === 1 ? 'ão' : 'ões'} · ${nOcultas} ocultada${nOcultas === 1 ? '' : 's'} · ${nManuais} ${nManuais === 1 ? 'manual' : 'manuais'}`;
+  const nEditadas = alteracoesLinhas.length;
+  const total = nOcultas + nManuais + nEditadas;
+  el.textContent = `${total} alteraç${total === 1 ? 'ão' : 'ões'} · ${nEditadas} linha${nEditadas === 1 ? '' : 's'} editada${nEditadas === 1 ? '' : 's'} · ${nOcultas} ocultada${nOcultas === 1 ? '' : 's'} · ${nManuais} ${nManuais === 1 ? 'manual' : 'manuais'}`;
 }
 
 /* ---------------- Formulário: viagem manual ---------------- */
@@ -857,6 +1522,38 @@ function bindEvents() {
   const btnRes = document.getElementById('btn-restaurar');
   if (btnRes) btnRes.addEventListener('click', restaurarFabrica);
 
+  // Modal de edição de linha.
+  const modalFechar = document.getElementById('linha-modal-fechar');
+  if (modalFechar) modalFechar.addEventListener('click', fecharModalLinha);
+  const modalOverlay = document.getElementById('linha-modal-overlay');
+  if (modalOverlay) modalOverlay.addEventListener('click', fecharModalLinha);
+  const modalGuardar = document.getElementById('linha-modal-guardar');
+  if (modalGuardar) modalGuardar.addEventListener('click', guardarModalLinha);
+  const modalCancelar = document.getElementById('linha-modal-cancelar');
+  if (modalCancelar) modalCancelar.addEventListener('click', fecharModalLinha);
+
+  // Adicionar paragem à rota (matriz).
+  const rotaAdd = document.getElementById('rota-add-paragem');
+  if (rotaAdd) rotaAdd.addEventListener('click', () => {
+    if (!linhaEmEdicao) return;
+    sincronizarMatriz();
+    linhaEmEdicao.modelo.rota.push('');
+    renderMatriz();
+  });
+
+  // Adicionar nova viagem (coluna em branco na matriz).
+  const viagemAdd = document.getElementById('viagem-add');
+  if (viagemAdd) viagemAdd.addEventListener('click', () => {
+    if (!linhaEmEdicao) return;
+    sincronizarMatriz();
+    linhaEmEdicao.modelo.viagens.push({ nome: '', periodo: 'anual', dias: 'dias_uteis', horas: {} });
+    renderMatriz();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') fecharModalLinha();
+  });
+
   ligarMensagens();
 }
 
@@ -874,6 +1571,7 @@ async function init() {
   // Overrides do localStorage (independentes do fetch).
   carregarOcultas();
   carregarManuais();
+  carregarAlteracoes();
   atualizarResumo();
 
   // Formulário começa com duas paragens (origem + destino).
@@ -887,10 +1585,11 @@ async function init() {
     buildStops();
     populateDatalist();
     buildTrips();
+    buildLinhas();
     renderViagens();
     renderAlteracoes();
     atualizarResumo();
-    setStatus(`${state.trips.length} viagens carregadas de horarios.json.`);
+    setStatus(`${state.linhas.length} linhas carregadas de horarios.json.`);
   } catch (err) {
     console.error(err);
     setStatus('Erro ao carregar horarios.json — ' + err.message + ' (sirva a pasta com um servidor HTTP).', true);

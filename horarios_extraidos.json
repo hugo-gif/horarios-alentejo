@@ -11,7 +11,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Beja",
@@ -106,7 +106,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vila Frades",
@@ -220,7 +220,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Beja",
@@ -311,7 +311,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vila Frades",
@@ -1064,7 +1064,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Cuba",
@@ -1324,7 +1324,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Évora",
@@ -2386,7 +2386,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Ourique (Est.)",
@@ -2620,7 +2620,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Castro Verde",
@@ -2862,7 +2862,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Beja",
@@ -3178,7 +3178,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Moura",
@@ -3521,7 +3521,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Beja",
@@ -3837,7 +3837,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Moura",
@@ -4820,7 +4820,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Beja",
@@ -4988,7 +4988,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mombeja",
@@ -5078,7 +5078,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Serpa",
@@ -5122,7 +5122,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Serpa",
@@ -5162,7 +5162,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vale Vargo",
@@ -5204,7 +5204,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vale Vargo",
@@ -5996,7 +5996,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Pias",
@@ -6032,7 +6032,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vale Vargo",
@@ -7315,7 +7315,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mértola",
@@ -7383,7 +7383,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Amendoeira Serra",
@@ -7460,7 +7460,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mina S. Domingos",
@@ -7629,7 +7629,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mina S. Domingos",
@@ -7737,7 +7737,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "13:4514:35 13:4507:45 Serpa",
@@ -7917,7 +7917,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Serpa",
@@ -10292,7 +10292,7 @@
         "periodos": [
           {
             "periodo": "anual",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Ourique (Est.)",
@@ -10408,7 +10408,7 @@
         "periodos": [
           {
             "periodo": "anual",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Castro Verde",
@@ -10688,7 +10688,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Cuba",
@@ -10893,7 +10893,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Pedrogão",
@@ -18000,7 +18000,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Évora",
@@ -18218,7 +18218,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Évora",
@@ -18596,7 +18596,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mora",
@@ -22002,7 +22002,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Reguengos",
@@ -22630,7 +22630,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Montemor O Novo",
@@ -22782,7 +22782,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Viana Alentejo",
@@ -22924,7 +22924,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Montemor O Novo",
@@ -23011,7 +23011,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Viana Alentejo",
@@ -24023,7 +24023,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mora",
@@ -24251,7 +24251,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Valongo",
@@ -24491,7 +24491,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Mora",
@@ -24700,7 +24700,7 @@
         "periodos": [
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Valongo",
@@ -25078,7 +25078,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Aldeia Pias",
@@ -25286,7 +25286,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vila Viçosa",
@@ -27303,7 +27303,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Fronteira",
@@ -27519,7 +27519,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Fronteira",
@@ -28917,7 +28917,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Elvas",
@@ -29961,7 +29961,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quinta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Ponte Sôr",
@@ -30684,7 +30684,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Gavião",
@@ -31158,7 +31158,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Ponte Sôr",
@@ -32156,7 +32156,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Ponte Sôr",
@@ -32748,7 +32748,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Amieira Tejo",
@@ -32935,7 +32935,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Portalegre",
@@ -33130,7 +33130,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Galegos",
@@ -33304,7 +33304,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Posto Guarda Fiscal",
@@ -33424,7 +33424,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Portalegre",
@@ -33591,7 +33591,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Portalegre",
@@ -36792,7 +36792,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Fronteira",
@@ -36882,7 +36882,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Vaiamonte",
@@ -36942,7 +36942,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Portalegre",
@@ -37032,7 +37032,7 @@
           },
           {
             "periodo": "nao_escolar",
-            "dias": "segunda_feira + terca_feira + quarta_feira + sexta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Portalegre",
@@ -39295,7 +39295,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira + quarta_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Cercal Alentejo",
@@ -39638,7 +39638,7 @@
         "periodos": [
           {
             "periodo": "escolar",
-            "dias": "segunda_feira",
+            "dias": "dias_uteis",
             "paragens": [
               {
                 "nome": "Sines (Terminal)",

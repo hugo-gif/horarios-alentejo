@@ -96,6 +96,12 @@ def normalizar_dias(texto):
     if "todos os dias" in t or "diariamente" in t:
         return "todos_os_dias"
 
+    # Letter-spacing: deteta "Segundas Terças Quartas Quintas Sextas" mesmo com
+    # as letras separadas por espaços (ex.: "S e g u n d a s  T e r ç a s ...").
+    sem_espacos = t.replace(" ", "")
+    if all(k in sem_espacos for k in ("segunda", "terca", "quarta", "quinta", "sexta")):
+        return "dias_uteis"
+
     dias = set()
     for i, x in enumerate(DIA_ORDEM):
         for j, y in enumerate(DIA_ORDEM):

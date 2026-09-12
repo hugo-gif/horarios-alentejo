@@ -277,6 +277,14 @@ function periodoAtivo(periodo, isEscolar) {
   return true;
 }
 
+/* A viagem só circula dentro do intervalo [inicio, fim]? (eventos temporários). */
+function dentroDoIntervalo(iso, inicio, fim) {
+  if (!iso) return true;
+  if (inicio && iso < inicio) return false;
+  if (fim && iso > fim) return false;
+  return true;
+}
+
 /* ---------------- Carregamento ---------------- */
 
 async function loadData() {
@@ -515,6 +523,8 @@ function buildTrips() {
               tipoServico: sentido.tipo_servico || null,
               periodo: sentido.periodo || null,
               fonte: servico.fonte || null,
+              data_inicio: sentido.data_inicio || null,
+              data_fim: sentido.data_fim || null,
               origem: pOrigem.nome,
               destino: pDestino.nome,
               origemNorm: norm(pOrigem.nome),
@@ -592,7 +602,8 @@ function findTrips(origem, destino, diaSemana, iso) {
     t.origemNorm === oKey &&
     t.destinoNorm === dKey &&
     circulaNoDia(t.tipoServico, diaSemana) &&
-    periodoAtivo(t.periodo, isEscolar)
+    periodoAtivo(t.periodo, isEscolar) &&
+    dentroDoIntervalo(iso, t.data_inicio, t.data_fim)
   );
 }
 
