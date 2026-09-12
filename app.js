@@ -17,6 +17,49 @@
 
 const DATA_URL = './horarios.json';
 
+/* =============================================================
+   Blindagem contra congelamentos no iOS (WebKit).
+   - Um erro síncrono não tratado no arranque pode deixar a thread
+     principal presa. Registamos handlers globais para o apanhar.
+   - O acesso ao localStorage pode atirar exceção em modo privado
+     do iOS; usamos sempre o wrapper `safeStorage`.
+   ============================================================= */
+window.addEventListener('error', (e) => {
+  console.error('Erro global:', e.error || e.message);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Promise rejeitada:', e.reason);
+});
+
+/* Wrapper seguro para o localStorage: nunca atira exceção.
+   Em iOS (modo privado / cookies restritos) o acesso direto pode
+   falhar de forma fatal, por isso isolamos tudo aqui. */
+const safeStorage = {
+  get(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (err) {
+      console.warn('localStorage indisponível (get):', err);
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+      return true;
+    } catch (err) {
+      console.warn('localStorage indisponível (set):', err);
+      return false;
+    }
+  },
+};
+
+/* Cede o controlo ao browser para o iOS poder pintar/responder a toques.
+   Evita que trabalho síncrono pesado bloqueie a thread principal. */
+function cederThread() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 const state = {
   data: null, // conteúdo de horarios.json
   stops: [],  // nomes únicos e válidos (higienizados) para o <datalist>
@@ -697,7 +740,7 @@ function chaveFavorito(t) {
 function carregarFavoritos() {
   favoritos = new Map();
   try {
-    const raw = localStorage.getItem(FAV_KEY);
+    const raw = safeStorage.get(FAV_KEY);
     if (!raw) return;
     const lista = JSON.parse(raw);
     if (!Array.isArray(lista)) return;
@@ -711,7 +754,7 @@ function carregarFavoritos() {
 
 function gravarFavoritos() {
   try {
-    localStorage.setItem(FAV_KEY, JSON.stringify([...favoritos.values()]));
+    safeStorage.set(FAV_KEY, JSON.stringify([...favoritos.values()]));
   } catch (err) {
     console.warn('Não foi possível gravar favoritos:', err);
   }
@@ -807,7 +850,7 @@ let viagensOcultas = new Map(); // chave -> { chave, origem, destino, partida, c
 function carregarOcultas() {
   viagensOcultas = new Map();
   try {
-    const raw = localStorage.getItem(OCULTAS_KEY);
+    const raw = safeStorage.get(OCULTAS_KEY);
     if (!raw) return;
     const lista = JSON.parse(raw);
     if (!Array.isArray(lista)) return;
@@ -827,7 +870,7 @@ function carregarOcultas() {
 
 function gravarOcultas() {
   try {
-    localStorage.setItem(OCULTAS_KEY, JSON.stringify([...viagensOcultas.values()]));
+    safeStorage.set(OCULTAS_KEY, JSON.stringify([...viagensOcultas.values()]));
   } catch (err) {
     console.warn('Não foi possível gravar viagens ocultas:', err);
   }
@@ -864,7 +907,7 @@ let viagensManuais = []; // { id, linha, operador, sentido, tipoServico, paragen
 function carregarManuais() {
   viagensManuais = [];
   try {
-    const raw = localStorage.getItem(MANUAIS_KEY);
+    const raw = safeStorage.get(MANUAIS_KEY);
     if (!raw) return;
     const lista = JSON.parse(raw);
     if (Array.isArray(lista)) viagensManuais = lista.filter((v) => v && Array.isArray(v.paragens));
@@ -875,7 +918,7 @@ function carregarManuais() {
 
 function gravarManuais() {
   try {
-    localStorage.setItem(MANUAIS_KEY, JSON.stringify(viagensManuais));
+    safeStorage.set(MANUAIS_KEY, JSON.stringify(viagensManuais));
   } catch (err) {
     console.warn('Não foi possível gravar viagens manuais:', err);
   }
@@ -1147,7 +1190,7 @@ const REPORTES_KEY = 'ra_reportes_erros';
 
 function carregarReportes() {
   try {
-    const raw = localStorage.getItem(REPORTES_KEY);
+    const raw = safeStorage.get(REPORTES_KEY);
     const lista = raw ? JSON.parse(raw) : [];
     return Array.isArray(lista) ? lista : [];
   } catch (err) {
@@ -1158,7 +1201,7 @@ function carregarReportes() {
 
 function gravarReportes(lista) {
   try {
-    localStorage.setItem(REPORTES_KEY, JSON.stringify(lista));
+    safeStorage.set(REPORTES_KEY, JSON.stringify(lista));
   } catch (err) {
     console.warn('Não foi possível gravar reportes:', err);
   }
@@ -1910,9 +1953,17 @@ async function init() {
 
   try {
     await loadData();
+
+    // Cede a thread entre as fases pesadas para o iOS nunca congelar.
+    await cederThread();
     buildStops();
+
+    await cederThread();
     rebuildTrips();
+
+    await cederThread();
     populateDatalist();
+
     setStatus('Escolha a origem e o destino para ver as viagens do dia.');
     document.getElementById('origem').focus();
   } catch (err) {
