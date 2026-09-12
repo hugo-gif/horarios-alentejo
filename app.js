@@ -301,7 +301,6 @@ function escolherParagem(nome) {
   const input = document.getElementById(seletorCampo);
   input.value = nome;
   fecharSeletorParagens();
-  input.focus();
   const origem = document.getElementById('origem').value.trim();
   const destino = document.getElementById('destino').value.trim();
   if (origem && destino) runSearch();
@@ -1898,7 +1897,6 @@ function bindEvents() {
     const a = origem.value;
     origem.value = destino.value;
     destino.value = a;
-    origem.focus();
     if (origem.value.trim() && destino.value.trim()) runSearch();
   });
 
@@ -1965,7 +1963,6 @@ async function init() {
     populateDatalist();
 
     setStatus('Escolha a origem e o destino para ver as viagens do dia.');
-    document.getElementById('origem').focus();
   } catch (err) {
     console.error(err);
     setStatus('Erro ao carregar horarios.json — ' + err.message, true);

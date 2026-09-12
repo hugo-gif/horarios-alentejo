@@ -57,6 +57,10 @@
     }
     html { -webkit-text-size-adjust: 100%; }
 
+    /* iOS: 16px mínimo em inputs/textarea/select evita o zoom automático
+       do browser ao focar (que desalinha e "congela" a interface no Safari). */
+    input, select, textarea { font-size: 16px !important; }
+
     /* Realce de toque transparente em TODOS os elementos. */
     * { -webkit-tap-highlight-color: transparent; }
     button, a, input, select, textarea, [role="button"] {
@@ -83,7 +87,6 @@
        (display:none). Reforçamos para garantir que, quando ocultos, não
        criam uma "caixa invisível" que intercepta toques. */
     .hidden { display: none !important; }
-    #assist-panel:not(.hidden),
     #reporte-modal:not(.hidden),
     #seletor-paragens:not(.hidden) { pointer-events: auto; }
     #assist-panel.hidden,
@@ -355,8 +358,8 @@
     <span id="assist-badge" class="absolute -right-0.5 -top-0.5 hidden h-4 w-4 rounded-full bg-emerald-500 ring-2 ring-white"></span>
   </button>
 
-  <div id="assist-panel" class="fixed inset-x-0 bottom-0 z-50 hidden sm:inset-x-auto sm:bottom-24 sm:right-5 sm:w-[380px]" role="dialog" aria-modal="false" aria-labelledby="assist-titulo">
-    <div class="flex max-h-[80vh] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-200 sm:max-h-[560px] sm:rounded-3xl">
+  <div id="assist-panel" class="pointer-events-none fixed inset-0 z-50 hidden flex items-end justify-center sm:justify-end sm:pr-5 sm:pb-24" role="dialog" aria-modal="false" aria-labelledby="assist-titulo">
+    <div class="pointer-events-auto flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-200 sm:max-h-[560px] sm:w-[380px] sm:rounded-3xl">
       <!-- Cabeçalho -->
       <div class="flex items-center gap-3 bg-gradient-to-br from-brand-600 to-brand-800 px-4 py-3.5 text-white">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-lg" aria-hidden="true">💬</span>
@@ -423,7 +426,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=24"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>
 
