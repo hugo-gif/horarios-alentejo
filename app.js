@@ -532,6 +532,7 @@ function buildTrips() {
               partida: par.partida,
               chegada: par.chegada,
               partidaMin: toMinutes(par.partida),
+              chegadaMin: toMinutes(par.chegada),
               // Rota completa (paragens intermédias) para o acordeão.
               rota: construirRota(paragens, oi, di, par.partida, par.chegada),
             });
@@ -607,6 +608,74 @@ function findTrips(origem, destino, diaSemana, iso) {
   );
 }
 
+/* ---------------- Transbordos (1 conexão) ---------------- */
+
+/* Janela de transbordo: espera mínima e máxima em minutos. */
+const MIN_ESPERA = 10;
+const MAX_ESPERA = 120;
+
+/* Encontra itinerários com 1 transbordo A -> T -> B para a data selecionada.
+   O calendário (dias/período/eventos) é aplicado às duas etapas. */
+function findTransferencias(origem, destino, diaSemana, iso) {
+  const A = norm(origem);
+  const B = norm(destino);
+  const isEscolar = isPeriodoEscolar(iso);
+
+  // Viagens ativas no dia selecionado.
+  const ativas = state.trips.filter((t) =>
+    circulaNoDia(t.tipoServico, diaSemana) &&
+    periodoAtivo(t.periodo, isEscolar) &&
+    dentroDoIntervalo(iso, t.data_inicio, t.data_fim)
+  );
+
+  // Índice por origem para pesquisa rápida.
+  const porOrigem = new Map();
+  for (const t of ativas) {
+    if (!porOrigem.has(t.origemNorm)) porOrigem.set(t.origemNorm, []);
+    porOrigem.get(t.origemNorm).push(t);
+  }
+
+  const resultados = [];
+  const partindoDeA = porOrigem.get(A) || [];
+  for (const leg1 of partindoDeA) {
+    const T = leg1.destinoNorm;
+    if (T === A || T === B) continue; // evita ciclos / transbordo trivial
+
+    const chegandoAB = (porOrigem.get(T) || []).filter((t) => t.destinoNorm === B);
+    for (const leg2 of chegandoAB) {
+      if (leg2.partidaMin <= leg1.chegadaMin) continue; // tem de chegar antes de partir
+      const espera = leg2.partidaMin - leg1.chegadaMin;
+      if (espera < MIN_ESPERA || espera > MAX_ESPERA) continue;
+
+      resultados.push({
+        tipo: 'transbordo',
+        origem: leg1.origem,
+        destino: leg2.destino,
+        transbordo: leg1.destino, // = leg2.origem
+        partida: leg1.partida,
+        chegada: leg2.chegada,
+        partidaMin: leg1.partidaMin,
+        chegadaMin: leg2.chegadaMin,
+        espera,
+        leg1,
+        leg2,
+      });
+    }
+  }
+
+  return resultados;
+}
+
+/* Deduplica transbordos idênticos (mesmos horários nas duas etapas). */
+function consolidarTransbordos(transbordos) {
+  const seen = new Map();
+  for (const tr of transbordos) {
+    const key = `${tr.leg1.partida}|${tr.leg1.chegada}|${tr.leg2.partida}|${tr.leg2.chegada}|${norm(tr.transbordo)}`;
+    if (!seen.has(key)) seen.set(key, tr);
+  }
+  return [...seen.values()];
+}
+
 /* ---------------- Consolidação ---------------- */
 
 /* Agrupa viagens com a mesma partida e chegada, juntando operadores/linhas/períodos. */
@@ -620,6 +689,7 @@ function consolidar(trips) {
         partida: t.partida,
         chegada: t.chegada,
         partidaMin: t.partidaMin,
+        chegadaMin: t.chegadaMin,
         operadores: new Set(),
         linhas: new Set(),
         tipos: new Set(),
@@ -643,6 +713,7 @@ function consolidar(trips) {
       partida: g.partida,
       chegada: g.chegada,
       partidaMin: g.partidaMin,
+      chegadaMin: g.chegadaMin,
       operadores: [...g.operadores],
       linhas: [...g.linhas],
       tipos: [...g.tipos],
@@ -701,8 +772,8 @@ function estrelaSVG() {
 }
 
 /* Ícone de documento (PDF oficial). */
-function pdfSVG() {
-  return `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+function pdfSVG(cls) {
+  return `<svg viewBox="0 0 24 24" class="${cls || 'h-5 w-5'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
     <path d="M14 2v6h6" />
     <path d="M9 13h6" />
@@ -813,43 +884,155 @@ function tripCard(trip, isNext, isPast, index) {
     </li>`;
 }
 
-function renderResults(trips, origem, destino, diaSemana) {
+/* Botão de PDF em linha (no percurso expandido de cada etapa). */
+function pdfBotaoInline(fonte) {
+  if (!fonte) return '';
+  return `<button type="button" data-pdf="${esc(fonte)}"
+      class="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 transition hover:bg-red-50"
+      title="Ver PDF Oficial" aria-label="Ver PDF Oficial (${esc(fonte)})">${pdfSVG('h-3.5 w-3.5')} PDF</button>`;
+}
+
+/* Cartão de itinerário com transbordo (duas etapas cronológicas). */
+function transferCard(tr, isNext, isPast, index) {
+  const cls = isNext ? 'viagem-proxima bg-brand-50/60' : (isPast ? 'viagem-passada' : '');
+  const badge = isNext
+    ? '<span class="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Próxima</span>'
+    : (isPast
+      ? '<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Já partiu</span>'
+      : '');
+  const duracao = duracaoLabel(tr.partida, tr.chegada);
+
+  const rota1 = (tr.leg1.rota || []).map(rotaLinha).join('');
+  const rota2 = (tr.leg2.rota || []).map(rotaLinha).join('');
+
+  return `
+    <li class="viagem-card relative ${cls}">
+      <button type="button"
+              class="viagem-toggle flex w-full items-stretch gap-4 px-4 py-4 pr-12 text-left transition hover:bg-slate-50/70 focus:outline-none focus-visible:bg-slate-50"
+              aria-expanded="false" aria-controls="rota-trans-${index}">
+        <div class="flex w-14 shrink-0 flex-col items-center">
+          <span class="viagem-hora-partida text-xl font-extrabold tabular-nums leading-none text-slate-900">${esc(tr.partida)}</span>
+          <span class="mt-1 h-full w-px flex-1 bg-slate-200"></span>
+          <span class="mt-1 text-sm font-bold tabular-nums leading-none text-slate-500">${esc(tr.chegada)}</span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">1 Transbordo</span>
+            ${badge}
+            ${duracao ? `<span class="text-[11px] font-semibold text-slate-500">${esc(duracao)} de viagem</span>` : ''}
+          </div>
+
+          <div class="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">${esc(tr.leg1.linha)}</span>
+            <span class="font-semibold text-slate-800">${esc(tr.origem)}</span>
+            <span class="font-bold tabular-nums text-slate-700">${esc(tr.leg1.partida)}</span>
+            <span class="text-slate-400" aria-hidden="true">→</span>
+            <span class="font-semibold text-slate-800">${esc(tr.transbordo)}</span>
+            <span class="font-bold tabular-nums text-slate-700">${esc(tr.leg1.chegada)}</span>
+          </div>
+
+          <div class="my-1.5 flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-100">
+            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9" /><path d="M12 7v5l3 2" /></svg>
+            <span>Transbordo em ${esc(tr.transbordo)} · Espera de ${esc(String(tr.espera))} min</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">${esc(tr.leg2.linha)}</span>
+            <span class="font-semibold text-slate-800">${esc(tr.transbordo)}</span>
+            <span class="font-bold tabular-nums text-slate-700">${esc(tr.leg2.partida)}</span>
+            <span class="text-slate-400" aria-hidden="true">→</span>
+            <span class="font-semibold text-slate-800">${esc(tr.destino)}</span>
+            <span class="font-bold tabular-nums text-slate-700">${esc(tr.leg2.chegada)}</span>
+          </div>
+        </div>
+        <div class="flex shrink-0 items-center">
+          <svg viewBox="0 0 24 24" class="viagem-seta h-5 w-5 text-slate-400 transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </div>
+      </button>
+
+      <div id="rota-trans-${index}" class="viagem-detalhe hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        <div class="mb-1.5 flex items-center justify-between gap-2">
+          <p class="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <span class="text-slate-500">Etapa 1</span>
+            <span class="mx-1 text-slate-300">·</span>
+            <span class="text-brand-700">${esc(tr.leg1.linha)}</span>
+            <span class="mx-1 text-slate-300">·</span>
+            <span class="font-medium normal-case tracking-normal text-slate-500">${esc(tr.origem)} → ${esc(tr.transbordo)}</span>
+          </p>
+          ${pdfBotaoInline(tr.leg1.fonte)}
+        </div>
+        <ul class="relative ml-1 border-l border-slate-200 pl-4">${rota1}</ul>
+
+        <div class="my-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+          <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9" /><path d="M12 7v5l3 2" /></svg>
+          <span>Transbordo em <strong>${esc(tr.transbordo)}</strong> · espera de ${esc(String(tr.espera))} min</span>
+        </div>
+
+        <div class="mb-1.5 flex items-center justify-between gap-2">
+          <p class="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <span class="text-slate-500">Etapa 2</span>
+            <span class="mx-1 text-slate-300">·</span>
+            <span class="text-brand-700">${esc(tr.leg2.linha)}</span>
+            <span class="mx-1 text-slate-300">·</span>
+            <span class="font-medium normal-case tracking-normal text-slate-500">${esc(tr.transbordo)} → ${esc(tr.destino)}</span>
+          </p>
+          ${pdfBotaoInline(tr.leg2.fonte)}
+        </div>
+        <ul class="relative ml-1 border-l border-slate-200 pl-4">${rota2}</ul>
+      </div>
+    </li>`;
+}
+
+function renderResults(trips, transbordos, origem, destino, diaSemana) {
   const box = document.getElementById('results');
 
-  if (!trips.length) {
+  const diretas = consolidar(trips).map((t) => ({ ...t, origem, destino, tipo: 'direta' }));
+  const conexoes = consolidarTransbordos(transbordos).map((t) => ({ ...t, tipo: 'transbordo' }));
+
+  // Ordena tudo pela hora de chegada ao destino final B.
+  const itens = [...diretas, ...conexoes].sort((a, b) =>
+    (a.chegadaMin - b.chegadaMin) || (a.partidaMin - b.partidaMin)
+  );
+
+  if (!itens.length) {
     box.innerHTML = `
       <div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-12 text-center">
         <p class="text-sm font-semibold text-slate-600">Nenhuma viagem encontrada</p>
-        <p class="mt-1 text-xs text-slate-400">Não há ligações diretas de <strong>${esc(origem)}</strong> para <strong>${esc(destino)}</strong> que circulem no dia escolhido.</p>
+        <p class="mt-1 text-xs text-slate-400">Não há ligações diretas nem com transbordo de <strong>${esc(origem)}</strong> para <strong>${esc(destino)}</strong> que circulem no dia escolhido.</p>
       </div>`;
     return;
   }
 
-  const consolidados = consolidar(trips).map((t) => ({ ...t, origem, destino }));
   const hoje = new Date();
   const isHoje = hoje.getDay() === diaSemana;
   const now = nowMinutes();
 
+  // A "próxima" é a partida mais próxima a partir de agora (independente da ordem).
   let nextIndex = -1;
   if (isHoje) {
-    nextIndex = consolidados.findIndex((t) => t.partidaMin >= now);
+    let melhor = Infinity;
+    itens.forEach((t, i) => {
+      if (t.partidaMin >= now && t.partidaMin < melhor) { melhor = t.partidaMin; nextIndex = i; }
+    });
   }
 
-  const rows = consolidados.map((t, i) => {
+  const rows = itens.map((t, i) => {
     const isNext = i === nextIndex;
     const isPast = isHoje && t.partidaMin < now;
-    return tripCard(t, isNext, isPast, i);
+    return t.tipo === 'transbordo'
+      ? transferCard(t, isNext, isPast, i)
+      : tripCard(t, isNext, isPast, i);
   }).join('');
 
-  // Mapa chave -> viagem, para o clique da estrela de favorito.
+  // Mapa chave -> viagem (apenas diretas têm estrela de favorito).
   viagensPorChave = new Map();
-  for (const t of consolidados) {
+  for (const t of diretas) {
     viagensPorChave.set(chaveFavorito(t), t);
   }
 
   box.innerHTML = `
     <div class="mb-2 flex items-center justify-between px-1">
-      <h2 class="text-sm font-bold text-slate-700">${consolidados.length} partida${consolidados.length === 1 ? '' : 's'}</h2>
+      <h2 class="text-sm font-bold text-slate-700">${itens.length} resultado${itens.length === 1 ? '' : 's'}</h2>
       <span class="text-xs font-semibold text-slate-400">${esc(origem)} → ${esc(destino)}</span>
     </div>
     <article class="rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70">
@@ -885,8 +1068,8 @@ function ligarAcordeoes() {
     link.addEventListener('click', (ev) => ev.stopPropagation());
   });
 
-  // O botão PDF abre o visualizador em modal, sem recolher o cartão.
-  box.querySelectorAll('.pdf-btn').forEach((btn) => {
+  // Os botões PDF (flutuantes e em linha) abrem o visualizador, sem recolher o cartão.
+  box.querySelectorAll('[data-pdf]').forEach((btn) => {
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const fonte = btn.getAttribute('data-pdf');
@@ -1200,6 +1383,7 @@ function manuaisParaTrips() {
           partida: pO.hora,
           chegada: pD.hora,
           partidaMin: toMinutes(pO.hora),
+          chegadaMin: toMinutes(pD.hora),
           rota: paragens.slice(oi, di + 1).map((p, k) => ({
             nome: p.nome,
             hora: p.hora,
@@ -2176,7 +2360,109 @@ function runSearch() {
 
   const diaSemana = iso ? diaSemanaDaData(iso) : new Date().getDay();
   const trips = findTrips(origem, destino, diaSemana, iso);
-  renderResults(trips, origem, destino, diaSemana);
+  const transbordos = findTransferencias(origem, destino, diaSemana, iso);
+  renderResults(trips, transbordos, origem, destino, diaSemana);
+}
+
+/* ---------------- Instalação PWA (botão inteligente) ---------------- */
+
+let deferredPrompt = null;
+
+/* Dispositivo de secretária (sem toque e sem user-agent móvel)? */
+function ehDesktop() {
+  const ua = navigator.userAgent || '';
+  const movel = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+  const temToque = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  return !movel && !temToque;
+}
+
+/* Safari em iOS (não Chrome/Firefox/Opera iOS, que têm UA próprio)? */
+function ehIOS() {
+  const ua = navigator.userAgent || '';
+  return /iPhone|iPad|iPod/i.test(ua) && !/CriOS|FxiOS|OPiOS/i.test(ua);
+}
+
+/* A app já está instalada / a correr em modo standalone? */
+function ehStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || navigator.standalone === true;
+}
+
+/* Mostra/esconde o botão conforme o dispositivo e a disponibilidade do prompt. */
+function atualizarBotaoInstalar() {
+  const btn = document.getElementById('btn-instalar');
+  if (!btn) return;
+  if (ehStandalone() || ehDesktop()) { btn.classList.add('hidden'); return; }
+  if (ehIOS()) { btn.classList.remove('hidden'); return; }
+  if (deferredPrompt) btn.classList.remove('hidden');
+  else btn.classList.add('hidden');
+}
+
+function abrirInstalarIOS() {
+  const modal = document.getElementById('instalar-ios-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  bloquearScroll();
+}
+
+function fecharInstalarIOS() {
+  const modal = document.getElementById('instalar-ios-modal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  desbloquearScroll();
+}
+
+function ligarInstalacao() {
+  const btn = document.getElementById('btn-instalar');
+  if (!btn) return;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    atualizarBotaoInstalar();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    btn.classList.add('hidden');
+  });
+
+  btn.addEventListener('click', async () => {
+    if (ehIOS()) { abrirInstalarIOS(); return; }
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (_) { /* ignorar */ }
+    deferredPrompt = null;
+    atualizarBotaoInstalar();
+  });
+
+  document.getElementById('instalar-ios-fechar')?.addEventListener('click', fecharInstalarIOS);
+  document.getElementById('instalar-ios-overlay')?.addEventListener('click', fecharInstalarIOS);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('instalar-ios-modal')?.classList.contains('hidden')) {
+      fecharInstalarIOS();
+    }
+  });
+
+  atualizarBotaoInstalar();
+}
+
+/* Regista o service worker para suporte offline (apenas em contexto seguro). */
+function registarServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    console.warn('SW: navegador sem suporte a Service Worker.');
+    return;
+  }
+  const seguro = location.protocol === 'https:'
+    || location.hostname === 'localhost'
+    || location.hostname === '127.0.0.1';
+  if (!seguro) {
+    console.warn('SW: contexto não seguro (' + location.protocol + '//' + location.hostname + '). Regista via HTTPS ou localhost.');
+    return;
+  }
+  navigator.serviceWorker.register('/sw.js')
+    .then((reg) => console.log('SW registado com sucesso:', reg.scope))
+    .catch((err) => console.error('Erro ao registar SW:', err));
 }
 
 async function init() {
@@ -2199,6 +2485,8 @@ async function init() {
   ligarAssistente();
   ligarReporte();
   ligarPdfModal();
+  ligarInstalacao();
+  registarServiceWorker();
 
   try {
     await loadData();
