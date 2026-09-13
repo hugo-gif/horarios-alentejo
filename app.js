@@ -1142,18 +1142,41 @@ function ligarAcordeoes() {
 
 /* ---------------- Visualizador de PDF (modal) ---------------- */
 
+/* Constrói o URL do PDF: URL externo (http/https) ou caminho local. */
+function urlPdf(fonte) {
+  const f = String(fonte || '').trim();
+  if (/^https?:\/\//i.test(f)) return f;
+  return `pdfs_horarios/${f}`;
+}
+
 /* Abre o visualizador em modal para um ficheiro PDF. */
 function abrirPdf(fonte) {
   const modal = document.getElementById('pdf-modal');
   const frame = document.getElementById('pdf-frame');
   if (!modal || !frame) return;
 
-  const url = `pdfs_horarios/${fonte}`;
-  document.getElementById('pdf-titulo').textContent = fonte;
-  document.getElementById('pdf-abrir').href = url;
+  const rotulo = String(fonte || '').trim();
+  const externo = /^https?:\/\//i.test(rotulo);
+  const url = urlPdf(rotulo);
+
+  document.getElementById('pdf-titulo').textContent = rotulo;
+
+  const abrir = document.getElementById('pdf-abrir');
+  abrir.href = url;
+  abrir.setAttribute('rel', 'noopener noreferrer');
+
   const download = document.getElementById('pdf-download');
   download.href = url;
-  download.setAttribute('download', fonte);
+  if (externo) {
+    // Cross-origin: o atributo `download` é ignorado; abre em nova aba.
+    download.removeAttribute('download');
+    download.setAttribute('target', '_blank');
+    download.setAttribute('rel', 'noopener noreferrer');
+  } else {
+    download.setAttribute('download', rotulo);
+    download.removeAttribute('target');
+    download.removeAttribute('rel');
+  }
 
   frame.src = url;
   modal.classList.remove('hidden');
