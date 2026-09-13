@@ -1,16 +1,18 @@
 /* =============================================================
    Service Worker — Horários do Alentejo (offline)
-   Cache: ra-cache-v3
+   Cache: ra-cache-v4
    Estratégia:
-     • install: pré-cache resiliente (allSettled) dos ficheiros vitais.
+     • install: pré-cache resiliente (allSettled) + skipWaiting (ativa de imediato);
+     • activate: limpa caches antigas + clients.claim (assume o controlo já);
      • fetch:
          - navegação: network-first com fallback offline para /index.html;
-         - /horarios.json: stale-while-revalidate (resposta imediata + atualização em fundo);
-         - estáticos locais: cache-first com fallback de rede;
+         - /horarios.json: network-first com fallback para cache (dados sempre frescos);
+         - scripts locais (app.js): network-first com fallback para cache;
+         - restantes estáticos: cache-first com fallback de rede;
          - cross-origin (Tailwind CDN / Google Fonts): cache dinâmico opaque.
    ============================================================= */
 
-const CACHE_NAME = 'ra-cache-v3';
+const CACHE_NAME = 'ra-cache-v4';
 
 const PRECACHE = [
   '/',
@@ -48,6 +50,9 @@ async function precacheItem(cache, url, ms = 8000) {
 }
 
 self.addEventListener('install', (event) => {
+  // Ativa imediatamente a nova versão (atualizações automáticas).
+  self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       // allSettled: uma falha isolada (404/query/CORS) nunca aborta a instalação.
@@ -62,13 +67,6 @@ self.addEventListener('activate', (event) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
-});
-
-/* Atualização: a página pede ao novo worker para assumir o controlo. */
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -99,24 +97,24 @@ self.addEventListener('fetch', (event) => {
 
   // Recursos do próprio domínio.
   if (url.origin === self.location.origin) {
-    // /horarios.json: stale-while-revalidate (resposta imediata + atualização em fundo).
-    if (url.pathname.endsWith('/horarios.json')) {
+    // Dados/scripts críticos (horarios.json, app.js): network-first com fallback
+    // para cache — garante que o utilizador recebe sempre a versão mais recente.
+    if (url.pathname.endsWith('/horarios.json') || url.pathname.endsWith('/app.js')) {
       event.respondWith(
-        caches.open(CACHE_NAME).then(async (cache) => {
-          const cached = await cache.match(chave(req.url), { ignoreSearch: true });
-          const rede = fetch(req)
-            .then((res) => {
-              if (res && res.ok) cache.put(chave(req.url), res.clone());
-              return res;
-            })
-            .catch(() => cached);
-          return cached || rede;
-        })
+        fetch(req)
+          .then((res) => {
+            if (res && res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(chave(req.url), copy));
+            }
+            return res;
+          })
+          .catch(() => caches.match(chave(req.url), { ignoreSearch: true }))
       );
       return;
     }
 
-    // Estáticos locais (app.js, manifest, ícones…): cache-first com fallback de rede.
+    // Restantes estáticos locais (manifest, ícones…): cache-first com fallback de rede.
     event.respondWith(
       caches.match(chave(req.url), { ignoreSearch: true }).then((cached) => {
         if (cached) return cached;

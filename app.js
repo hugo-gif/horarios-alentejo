@@ -2521,50 +2521,8 @@ function ligarInstalacao() {
 
 /* ---------------- Atualização automática do Service Worker ---------------- */
 
-let swRegistacao = null;            // referência à registration ativa
-let swAvisoVisivel = false;         // evita mostrar o banner mais do que uma vez
-let swRecarregarNoControlo = false; // recarrega assim que o novo SW assumir controlo
-
-/* Mostra o banner "Nova versão disponível! [Atualizar]". */
-function mostrarAvisoAtualizacao() {
-  if (swAvisoVisivel) return;
-  swAvisoVisivel = true;
-
-  let aviso = document.getElementById('sw-atualizacao');
-  if (!aviso) {
-    aviso = document.createElement('div');
-    aviso.id = 'sw-atualizacao';
-    aviso.className = 'fixed bottom-20 left-1/2 z-[70] flex w-[min(92vw,24rem)] -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-2xl transition-all duration-300';
-    aviso.innerHTML = `
-      <div class="min-w-0 flex-1">
-        <p class="text-sm font-bold leading-tight">Nova versão disponível!</p>
-        <p class="mt-0.5 text-xs text-white/70">Toque em Atualizar para recarregar com as novidades.</p>
-      </div>
-      <button type="button" id="sw-atualizar-btn"
-              class="shrink-0 rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-700 active:scale-95">Atualizar</button>`;
-    document.body.appendChild(aviso);
-    document.getElementById('sw-atualizar-btn').addEventListener('click', pedirAtualizacao);
-  }
-
-  aviso.style.opacity = '0';
-  aviso.style.transform = 'translate(-50%, 12px)';
-  requestAnimationFrame(() => {
-    aviso.style.opacity = '1';
-    aviso.style.transform = 'translate(-50%, 0)';
-  });
-}
-
-/* Utilizador aceitou atualizar: ativa o novo worker e recarrega a página. */
-function pedirAtualizacao() {
-  swRecarregarNoControlo = true;
-  const alvo = swRegistacao && swRegistacao.waiting;
-  if (alvo) {
-    alvo.postMessage({ type: 'SKIP_WAITING' });
-  } else {
-    // Não há worker à espera: recarrega como último recurso.
-    window.location.reload();
-  }
-}
+let swRegistacao = null;   // referência à registration ativa
+let swRefreshing = false;  // evita recarregar em loop
 
 /* Verifica por uma nova versão do SW (apenas online). */
 function verificarAtualizacaoSW() {
@@ -2586,9 +2544,16 @@ function registarServiceWorker() {
     return;
   }
 
-  // Quando um novo SW assume o controlo após um "Atualizar", recarrega a página.
+  // Na primeira instalação não havia controlador: não é preciso recarregar.
+  let tinhaControlador = Boolean(navigator.serviceWorker.controller);
+
+  // Assim que uma NOVA versão assume o controlo, recarrega para usar os recursos
+  // frescos — o utilizador nunca fica preso a versões antigas após um deploy.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (swRecarregarNoControlo) window.location.reload();
+    if (!tinhaControlador) { tinhaControlador = true; return; }
+    if (swRefreshing) return;
+    swRefreshing = true;
+    window.location.reload();
   });
 
   // Verificação periódica: no arranque, ao voltar online e ao reativar a página.
@@ -2602,28 +2567,6 @@ function registarServiceWorker() {
     .then((reg) => {
       console.log('SW registado com sucesso:', reg.scope);
       swRegistacao = reg;
-
-      // Worker já à espera quando a página carrega:
-      // - sem controlador ativo: primeira instalação, ativa de imediato;
-      // - com controlador ativo: é uma atualização, mostra o banner.
-      if (reg.waiting) {
-        if (navigator.serviceWorker.controller) {
-          mostrarAvisoAtualizacao();
-        } else {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-      }
-
-      // Nova versão detetada durante a instalação (updatefound).
-      reg.addEventListener('updatefound', () => {
-        const novo = reg.installing;
-        if (!novo) return;
-        novo.addEventListener('statechange', () => {
-          if (novo.state === 'installed' && navigator.serviceWorker.controller) {
-            mostrarAvisoAtualizacao();
-          }
-        });
-      });
 
       // Verificação inicial (o servidor pode já ter uma versão mais recente).
       verificarAtualizacaoSW();
