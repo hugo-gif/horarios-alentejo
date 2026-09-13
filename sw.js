@@ -48,9 +48,6 @@ async function precacheItem(cache, url, ms = 8000) {
 }
 
 self.addEventListener('install', (event) => {
-  // Ativa imediatamente, sem esperar pelo fim do pré-cache.
-  self.skipWaiting();
-
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       // allSettled: uma falha isolada (404/query/CORS) nunca aborta a instalação.
@@ -65,6 +62,13 @@ self.addEventListener('activate', (event) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+/* Atualização: a página pede ao novo worker para assumir o controlo. */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
