@@ -676,6 +676,51 @@ function consolidarTransbordos(transbordos) {
   return [...seen.values()];
 }
 
+/* Constrói a rota combinada (linha do tempo única) de um transbordo, para o
+   acordeão da aba Guardados. Evita duplicar a paragem de transbordo. */
+function rotaCombinadaTransbordo(t) {
+  const r1 = (t.leg1.rota || []).map((p) => ({ ...p }));
+  const r2 = (t.leg2.rota || []).map((p) => ({ ...p })).slice(1);
+  const paragens = [...r1, ...r2];
+  paragens.forEach((p, i) => {
+    p.isOrigem = i === 0;
+    p.isDestino = i === paragens.length - 1;
+  });
+  return paragens;
+}
+
+/* Filtro Pareto: remove rotas ineficientes (dominadas).
+   A é removida se existir B que parte à mesma hora ou mais tarde E chega à
+   mesma hora ou mais cedo, com melhoria estrita em pelo menos uma dimensão.
+   Empate exato (mesma partida e chegada): prioriza a direta sobre o transbordo;
+   entre transbordos idênticos, mantém apenas um (deduplicação). */
+function filtrarPareto(itens) {
+  const sobreviventes = [];
+  for (const a of itens) {
+    const dominada = itens.some((b) =>
+      b !== a &&
+      b.partidaMin >= a.partidaMin &&
+      b.chegadaMin <= a.chegadaMin &&
+      (b.partidaMin > a.partidaMin || b.chegadaMin < a.chegadaMin)
+    );
+    if (dominada) continue;
+
+    const idx = sobreviventes.findIndex((b) =>
+      b.partidaMin === a.partidaMin && b.chegadaMin === a.chegadaMin
+    );
+    if (idx !== -1) {
+      const existente = sobreviventes[idx];
+      if (a.tipo === 'direta' && existente.tipo === 'transbordo') {
+        sobreviventes[idx] = a; // direta tem prioridade sobre o transbordo
+      }
+      continue;
+    }
+
+    sobreviventes.push(a);
+  }
+  return sobreviventes;
+}
+
 /* ---------------- Consolidação ---------------- */
 
 /* Agrupa viagens com a mesma partida e chegada, juntando operadores/linhas/períodos. */
@@ -901,6 +946,8 @@ function transferCard(tr, isNext, isPast, index) {
       ? '<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Já partiu</span>'
       : '');
   const duracao = duracaoLabel(tr.partida, tr.chegada);
+  const favKey = chaveFavorito(tr);
+  const isFav = favoritos.has(favKey);
 
   const rota1 = (tr.leg1.rota || []).map(rotaLinha).join('');
   const rota2 = (tr.leg2.rota || []).map(rotaLinha).join('');
@@ -950,6 +997,15 @@ function transferCard(tr, isNext, isPast, index) {
         </div>
       </button>
 
+      <button type="button"
+              class="fav-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition hover:bg-brand-50 hover:text-brand-600 ${isFav ? 'is-fav' : ''}"
+              data-fav="${esc(favKey)}"
+              aria-pressed="${isFav}"
+              aria-label="${isFav ? 'Remover dos guardados' : 'Guardar viagem'}"
+              title="${isFav ? 'Remover dos guardados' : 'Guardar viagem'}">
+        ${estrelaSVG()}
+      </button>
+
       <div id="rota-trans-${index}" class="viagem-detalhe hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3">
         <div class="mb-1.5 flex items-center justify-between gap-2">
           <p class="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -987,11 +1043,17 @@ function renderResults(trips, transbordos, origem, destino, diaSemana) {
   const box = document.getElementById('results');
 
   const diretas = consolidar(trips).map((t) => ({ ...t, origem, destino, tipo: 'direta' }));
-  const conexoes = consolidarTransbordos(transbordos).map((t) => ({ ...t, tipo: 'transbordo' }));
 
-  // Ordena tudo pela hora de chegada ao destino final B.
-  const itens = [...diretas, ...conexoes].sort((a, b) =>
-    (a.chegadaMin - b.chegadaMin) || (a.partidaMin - b.partidaMin)
+  // Transbordos ganham linha/operador/rota combinados, para a estrela de guardar.
+  const conexoes = consolidarTransbordos(transbordos).map((t) => {
+    const linha = [t.leg1.linha, t.leg2.linha].filter((l) => l && l !== '—').join(' → ');
+    const operador = [t.leg1.operador, t.leg2.operador].filter((o) => o && o !== '—').join(' + ');
+    return { ...t, tipo: 'transbordo', linha, operador, rota: rotaCombinadaTransbordo(t) };
+  });
+
+  // Filtro Pareto (remove rotas dominadas) + ordenação: partida, depois chegada.
+  const itens = filtrarPareto([...diretas, ...conexoes]).sort((a, b) =>
+    (a.partidaMin - b.partidaMin) || (a.chegadaMin - b.chegadaMin)
   );
 
   if (!itens.length) {
@@ -1024,9 +1086,9 @@ function renderResults(trips, transbordos, origem, destino, diaSemana) {
       : tripCard(t, isNext, isPast, i);
   }).join('');
 
-  // Mapa chave -> viagem (apenas diretas têm estrela de favorito).
+  // Mapa chave -> viagem (diretas e transbordos têm estrela de favorito).
   viagensPorChave = new Map();
-  for (const t of diretas) {
+  for (const t of itens) {
     viagensPorChave.set(chaveFavorito(t), t);
   }
 
