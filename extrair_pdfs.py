@@ -264,12 +264,43 @@ def has_blocks(lines):
     )
 
 
+# ---------------------------------------------------------------- alinhamento de colunas
+
+def _colunas_x(xs, tol=10.0):
+    """Agrupa centros X em colunas (média por coluna), da esquerda para a direita.
+
+    Células em branco/seta não geram palavra, por isso cada paragem tem uma lista
+    de tempos com tamanho diferente. Esta função reconstrói as posições das colunas
+    a partir de TODOS os tempos do período, para depois alinhar as paragens."""
+    grupos = []
+    for x in sorted(xs):
+        if grupos and x - grupos[-1][-1] <= tol:
+            grupos[-1].append(x)
+        else:
+            grupos.append([x])
+    return [sum(g) / len(g) for g in grupos]
+
+
+def _alinhar_tempos(times, colunas, tol=15.0):
+    """Alinha os tempos (centro X, texto) às colunas; '-' onde a célula está vazia."""
+    if not colunas:
+        return [texto for _, texto in times]
+    res = ["-"] * len(colunas)
+    for x, texto in times:
+        idx = min(range(len(colunas)), key=lambda i: abs(colunas[i] - x))
+        if abs(colunas[idx] - x) <= tol:
+            res[idx] = texto
+    return res
+
+
 # ---------------------------------------------------------------- layout espelhado
 
 def split_mirrored_row(ln):
-    """Linha do layout espelhado: nome central + tempos à esquerda/direita + P/C."""
+    """Linha do layout espelhado: nome central + tempos à esquerda/direita + P/C.
+
+    Os tempos são devolvidos com o centro X (x0+x1)/2 para permitir o alinhamento
+    das colunas entre paragens (células em branco/seta não geram palavra)."""
     words = _juntar_tempos_partidos(ln["words"])
-    times = [w for w in words if is_time(w["text"])]
     non_time = [w for w in words if not is_time(w["text"])]
 
     name_words = [w for w in non_time if w["text"] not in MARKERS]
@@ -285,13 +316,16 @@ def split_mirrored_row(ln):
     ida_marker = next((w["text"] for w in left if w["text"] in MARKERS), None)
     volta_marker = next((w["text"] for w in right if w["text"] in MARKERS), None)
 
+    def _tempos(ws):
+        return [((w["x0"] + w["x1"]) / 2.0, w["text"]) for w in ws if is_time(w["text"])]
+
     return {
         "top": ln["top"],
         "nome": " ".join(w["text"] for w in name_words),
         "ida_marker": ida_marker,
         "volta_marker": volta_marker,
-        "tempos_ida": [w["text"] for w in left if is_time(w["text"])],
-        "tempos_volta": [w["text"] for w in right if is_time(w["text"])],
+        "tempos_ida": _tempos(left),
+        "tempos_volta": _tempos(right),
     }
 
 
@@ -341,12 +375,18 @@ def parse_mirrored_direcoes(lines):
             continue
         rows_sorted = sorted(rows, key=lambda r: (r["page"], r["top"]))
 
+        # Reconstrói as colunas (centros X) a partir de todos os tempos do período.
+        ida_cols = _colunas_x([x for r in rows_sorted for x, _ in r["tempos_ida"]])
+        volta_cols = _colunas_x([x for r in rows_sorted for x, _ in r["tempos_volta"]])
+
         ida_paragens = [
-            {"nome": r["nome"], "marcador": r["ida_marker"], "horarios": r["tempos_ida"]}
+            {"nome": r["nome"], "marcador": r["ida_marker"],
+             "horarios": _alinhar_tempos(r["tempos_ida"], ida_cols)}
             for r in rows_sorted
         ]
         volta_paragens = [
-            {"nome": r["nome"], "marcador": r["volta_marker"], "horarios": r["tempos_volta"]}
+            {"nome": r["nome"], "marcador": r["volta_marker"],
+             "horarios": _alinhar_tempos(r["tempos_volta"], volta_cols)}
             for r in reversed(rows_sorted)
         ]
 
@@ -383,7 +423,7 @@ def split_block_row(ln):
     for w in words:
         txt = w["text"]
         if is_time(txt):
-            times.append(txt)
+            times.append(((w["x0"] + w["x1"]) / 2.0, txt))
         elif txt in MARKERS:
             marker = marker or txt
         else:
@@ -446,8 +486,10 @@ def parse_blocks_direcoes(lines):
         paragens = sorted(blk["paragens"], key=lambda r: (r["page"], r["top"]))
         if not paragens:
             continue
+        cols = _colunas_x([x for r in paragens for x, _ in r["times"]])
         paragens_out = [
-            {"nome": r["nome"], "marcador": r["marker"], "horarios": r["times"]}
+            {"nome": r["nome"], "marcador": r["marker"],
+             "horarios": _alinhar_tempos(r["times"], cols)}
             for r in paragens
         ]
         origem = paragens_out[0]["nome"]

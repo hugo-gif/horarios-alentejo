@@ -5,11 +5,9 @@
    Lê horarios.json e pesquisa viagens por origem → destino.
 
    Correções importantes:
-   1) Emparelhamento cronológico partida/chegada — os arrays
-      `horarios` das paragens NÃO estão alinhados por índice em
-      muitos sentidos. Cada partida é emparelhada com a primeira
-      chegada cuja hora seja >= à partida. Pares inválidos são
-      rejeitados.
+   1) As colunas de horários estão alinhadas por índice entre as
+      paragens (ver extrair_pdfs.py); cada coluna é uma circulação
+      e a hora de cada paragem é lida diretamente ('-' = não para).
    2) Filtro por dia da semana consoante a data escolhida.
    3) Consolidação/desduplicação de viagens idênticas.
    4) Timeline cronológica única.
@@ -503,7 +501,10 @@ function buildTrips() {
 
   for (const servico of state.data.servicos) {
     for (const sentido of servico.sentidos) {
-      const paragens = sentido.paragens;
+      const paragens = sentido.paragens || [];
+      // Número de colunas (uma por viagem/circulação). As paragens partilham as
+      // mesmas colunas alinhadas (ver extrair_pdfs.py), com '-' = não para.
+      const nCols = paragens.reduce((m, p) => Math.max(m, (p.horarios || []).length), 0);
 
       for (let oi = 0; oi < paragens.length; oi++) {
         const pOrigem = paragens[oi];
@@ -513,9 +514,12 @@ function buildTrips() {
           const pDestino = paragens[di];
           if (!isValidStopName(pDestino.nome)) continue;
 
-          const pares = emparelharHorarios(pOrigem.horarios, pDestino.horarios);
+          for (let c = 0; c < nCols; c++) {
+            const partida = (pOrigem.horarios || [])[c];
+            const chegada = (pDestino.horarios || [])[c];
+            if (toMinutes(partida) == null || toMinutes(chegada) == null) continue;
+            if (toMinutes(chegada) < toMinutes(partida)) continue;
 
-          for (const par of pares) {
             trips.push({
               operador: servico.operador || '—',
               linha: servico.linha || '—',
@@ -529,12 +533,13 @@ function buildTrips() {
               destino: pDestino.nome,
               origemNorm: norm(pOrigem.nome),
               destinoNorm: norm(pDestino.nome),
-              partida: par.partida,
-              chegada: par.chegada,
-              partidaMin: toMinutes(par.partida),
-              chegadaMin: toMinutes(par.chegada),
-              // Rota completa (paragens intermédias) para o acordeão.
-              rota: construirRota(paragens, oi, di, par.partida, par.chegada),
+              partida,
+              chegada,
+              partidaMin: toMinutes(partida),
+              chegadaMin: toMinutes(chegada),
+              // Rota completa para o acordeão, com a hora real de cada paragem
+              // (coluna alinhada) — sem interpolação.
+              rota: construirRota(paragens, oi, di, c),
             });
           }
         }
@@ -545,51 +550,30 @@ function buildTrips() {
   state.trips = trips;
 }
 
-/* Constrói a lista ordenada de paragens entre origem (oi) e destino (di),
-   com a hora de cada paragem para esta viagem concreta.
-
-   As paragens intermédias não têm hora própria por viagem no JSON, pelo que
-   a hora é interpolada linearmente entre a partida e a chegada, respeitando
-   a ordem das paragens. */
-function construirRota(paragens, oi, di, partida, chegada) {
-  const pMin = toMinutes(partida);
-  const cMin = toMinutes(chegada);
-  const n = di - oi; // número de troços
+/* Constrói a lista ordenada de paragens entre origem (oi) e destino (di) para a
+   viagem da coluna `coluna`, lendo a hora REAL de cada paragem no JSON (as
+   colunas estão alinhadas por índice). Paragens com '-' (não para) mantêm-se na
+   rota mas ficam marcadas com `para: false`. */
+function construirRota(paragens, oi, di, coluna) {
   const rota = [];
 
   for (let k = oi; k <= di; k++) {
     const p = paragens[k];
     if (!isValidStopName(p.nome)) continue;
 
-    let hora = null;
-    if (k === oi) {
-      hora = partida;
-    } else if (k === di) {
-      hora = chegada;
-    } else if (pMin != null && cMin != null && n > 0) {
-      // Interpolação proporcional à posição na rota.
-      const frac = (k - oi) / n;
-      const min = Math.round(pMin + (cMin - pMin) * frac);
-      hora = minutosParaHora(min);
-    }
+    const hora = (p.horarios || [])[coluna];
+    const para = toMinutes(hora) != null;
 
     rota.push({
       nome: p.nome,
-      hora,
+      hora: para ? hora : null,
+      para,
       isOrigem: k === oi,
       isDestino: k === di,
     });
   }
 
   return rota;
-}
-
-/* Converte minutos desde a meia-noite em "HH:MM". */
-function minutosParaHora(min) {
-  const m = ((min % 1440) + 1440) % 1440;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
 /* ---------------- Pesquisa ---------------- */
@@ -792,12 +776,15 @@ function mapaLink(nome) {
 /* Linha da rota detalhada (paragem intermédia). */
 function rotaLinha(p) {
   const destaque = p.isOrigem || p.isDestino;
+  const naoPara = p.para === false;
   const ponto = p.isOrigem
     ? 'bg-brand-600'
     : p.isDestino
       ? 'bg-slate-900'
-      : 'bg-slate-300';
-  const nomeCls = destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-600';
+      : (naoPara ? 'bg-slate-200' : 'bg-slate-300');
+  const nomeCls = destaque
+    ? 'font-bold text-slate-900'
+    : (naoPara ? 'font-medium text-slate-400' : 'font-medium text-slate-600');
   const horaCls = destaque ? 'font-bold text-slate-900' : 'text-slate-500';
 
   return `
@@ -805,7 +792,7 @@ function rotaLinha(p) {
       <span class="relative z-10 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white ${ponto}"></span>
       <span class="min-w-0 flex-1 truncate text-xs ${nomeCls}">${esc(p.nome)}</span>
       ${mapaLink(p.nome)}
-      <span class="shrink-0 text-xs tabular-nums ${horaCls}">${p.hora ? esc(p.hora) : '—'}</span>
+      <span class="shrink-0 text-xs tabular-nums ${horaCls}">${p.hora ? esc(p.hora) : (naoPara ? 'não para' : '—')}</span>
     </li>`;
 }
 
